@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { OAuth2Client } from 'google-auth-library';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
@@ -17,8 +18,11 @@ describe('AuthService', () => {
       update: jest.Mock;
       updateMany: jest.Mock;
     };
-    user: { update: jest.Mock };
-    refreshToken: { updateMany: jest.Mock };
+    user: { update: jest.Mock; create: jest.Mock };
+    refreshToken: { updateMany: jest.Mock; create: jest.Mock };
+    organization: { create: jest.Mock };
+    role: { create: jest.Mock };
+    membership: { create: jest.Mock };
     $transaction: jest.Mock;
   };
   let users: { findByEmail: jest.Mock };
@@ -33,8 +37,11 @@ describe('AuthService', () => {
         update: jest.fn(),
         updateMany: jest.fn(),
       },
-      user: { update: jest.fn() },
-      refreshToken: { updateMany: jest.fn() },
+      user: { update: jest.fn(), create: jest.fn() },
+      refreshToken: { updateMany: jest.fn(), create: jest.fn() },
+      organization: { create: jest.fn() },
+      role: { create: jest.fn() },
+      membership: { create: jest.fn() },
       $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
     };
     users = { findByEmail: jest.fn() };
@@ -152,6 +159,105 @@ describe('AuthService', () => {
       expect(prisma.passwordResetToken.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'reset-1' } }),
       );
+    });
+  });
+
+  describe('loginWithGoogle', () => {
+    let verifySpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      verifySpy = jest
+        .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+        .mockResolvedValue({
+          getPayload: () => ({
+            email: 'google@example.com',
+            sub: 'google-sub-1',
+            name: 'Google User',
+            picture: 'https://example.com/pic.jpg',
+            email_verified: true,
+          }),
+        } as any);
+      jwt.signAsync.mockResolvedValue('signed-token');
+      prisma.refreshToken.create.mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+      verifySpy.mockRestore();
+    });
+
+    it('throws UnauthorizedException for an invalid Google token', async () => {
+      verifySpy.mockRejectedValue(new Error('invalid token'));
+
+      await expect(
+        service.loginWithGoogle('bad-id-token'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('returns tokens and links googleId for an existing user', async () => {
+      users.findByEmail.mockResolvedValue({
+        id: 'user-1',
+        email: 'google@example.com',
+        fullName: 'Google User',
+        status: 'ACTIVE',
+        avatarUrl: null,
+      });
+      prisma.user.update.mockResolvedValue({
+        id: 'user-1',
+        email: 'google@example.com',
+        fullName: 'Google User',
+        avatarUrl: 'https://example.com/pic.jpg',
+        status: 'ACTIVE',
+        googleId: 'google-sub-1',
+      });
+
+      const result = await service.loginWithGoogle('good-id-token');
+
+      expect(result.accessToken).toBe('signed-token');
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-1' },
+          data: { googleId: 'google-sub-1' },
+        }),
+      );
+      expect(prisma.refreshToken.create).toHaveBeenCalled();
+    });
+
+    it('creates a new user with org, role and membership when email is new', async () => {
+      users.findByEmail.mockResolvedValue(null);
+      const tx = {
+        user: {
+          create: jest
+            .fn()
+            .mockResolvedValue({
+              id: 'user-new',
+              email: 'google@example.com',
+              fullName: 'Google User',
+              avatarUrl: 'https://example.com/pic.jpg',
+              googleId: 'google-sub-1',
+              status: 'ACTIVE',
+            }),
+        },
+        organization: {
+          create: jest.fn().mockResolvedValue({ id: 'org-1' }),
+        },
+        role: { create: jest.fn().mockResolvedValue({ id: 'role-1' }) },
+        membership: { create: jest.fn().mockResolvedValue({ id: 'mb-1' }) },
+      };
+      prisma.$transaction.mockImplementation(
+        (cb: (client: typeof tx) => unknown) => cb(tx),
+      );
+
+      const result = await service.loginWithGoogle('good-id-token');
+
+      expect(result.accessToken).toBe('signed-token');
+      expect(tx.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ googleId: 'google-sub-1' }),
+        }),
+      );
+      expect(tx.organization.create).toHaveBeenCalled();
+      expect(tx.role.create).toHaveBeenCalled();
+      expect(tx.membership.create).toHaveBeenCalled();
     });
   });
 });

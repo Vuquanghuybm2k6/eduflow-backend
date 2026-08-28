@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
@@ -89,12 +90,97 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isPasswordValid = await bcrypt.compare(
-      dto.password,
-      user.passwordHash,
-    );
+    const isPasswordValid = user.passwordHash
+      ? await bcrypt.compare(dto.password, user.passwordHash)
+      : false;
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Account is not active');
+    }
+
+    const tokens = await this.generateTokens(user.id, user.email);
+    await this.saveRefreshToken(user.id, tokens.refreshToken);
+
+    return {
+      user: this.sanitizeUser(user),
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  }
+
+  async loginWithGoogle(idToken: string) {
+    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    const client = new OAuth2Client(clientId);
+
+    let payload: {
+      email?: string;
+      name?: string;
+      picture?: string;
+      sub?: string;
+      email_verified?: boolean;
+    };
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: clientId,
+      });
+      payload = ticket.getPayload() ?? {};
+    } catch {
+      throw new UnauthorizedException('Invalid Google token');
+    }
+
+    const email = payload.email;
+    if (!email || !payload.sub || !payload.email_verified) {
+      throw new UnauthorizedException('Google account email is not verified');
+    }
+
+    const existing = await this.usersService.findByEmail(email);
+    let user = existing;
+
+    if (!user) {
+      user = await this.prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            email,
+            fullName: payload.name ?? email.split('@')[0],
+            avatarUrl: payload.picture ?? null,
+            googleId: payload.sub,
+          },
+        });
+
+        const org = await tx.organization.create({
+          data: {
+            name: `${newUser.fullName}'s Organization`,
+            slug: `org-${newUser.id.slice(0, 8)}`,
+          },
+        });
+
+        const role = await tx.role.create({
+          data: {
+            name: 'Admin',
+            organizationId: org.id,
+            isSystem: true,
+          },
+        });
+
+        await tx.membership.create({
+          data: {
+            userId: newUser.id,
+            organizationId: org.id,
+            roleId: role.id,
+          },
+        });
+
+        return newUser;
+      });
+    } else {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { googleId: payload.sub },
+      });
     }
 
     if (user.status !== 'ACTIVE') {
