@@ -1,23 +1,32 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
+import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
+const PASSWORD_RESET_TTL_MS = 3 * 60 * 1000; // 3 minutes
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -100,6 +109,99 @@ export class AuthService {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.usersService.findByEmail(email);
+
+    if (!user || user.status !== 'ACTIVE') {
+      return {
+        message: 'Nếu email tồn tại, mã OTP đã được gửi đến email của bạn.',
+      };
+    }
+
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const tokenHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+
+    await this.prisma.$transaction([
+      this.prisma.passwordResetToken.updateMany({
+        where: { email, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.passwordResetToken.create({
+        data: { email, tokenHash, expiresAt },
+      }),
+    ]);
+
+    try {
+      await this.mailService.sendOtpEmail(user.email, otp);
+    } catch (error: any) {
+      this.logger.error(`Failed to send OTP email to ${user.email}`, error);
+    }
+
+    return {
+      message: 'Nếu email tồn tại, mã OTP đã được gửi đến email của bạn.',
+    };
+  }
+
+  async verifyOtp(email: string, otp: string) {
+    const validTokens = await this.prisma.passwordResetToken.findMany({
+      where: { email, usedAt: null, expiresAt: { gt: new Date() } },
+    });
+
+    let matchedToken: (typeof validTokens)[number] | undefined;
+    for (const t of validTokens) {
+      if (await bcrypt.compare(otp, t.tokenHash)) {
+        matchedToken = t;
+        break;
+      }
+    }
+
+    if (!matchedToken) {
+      throw new BadRequestException('OTP không hợp lệ hoặc đã hết hạn');
+    }
+
+    const user = await this.usersService.findByEmail(email);
+    const resetToken = await this.jwtService.signAsync(
+      { sub: user!.id, email, otpId: matchedToken.id },
+      {
+        secret: this.configService.get<string>('JWT_RESET_SECRET'),
+        expiresIn: 10 * 60, // 10 minutes
+      },
+    );
+
+    return { resetToken };
+  }
+
+  async resetPassword(resetToken: string, newPassword: string) {
+    let payload: { sub: string; email: string; otpId: string };
+    try {
+      payload = await this.jwtService.verifyAsync(resetToken, {
+        secret: this.configService.get<string>('JWT_RESET_SECRET'),
+      });
+    } catch {
+      throw new BadRequestException('Token không hợp lệ hoặc đã hết hạn');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: payload.sub },
+        data: { passwordHash, updatedAt: new Date() },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: payload.otpId },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: payload.sub, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    return { message: 'Mật khẩu đã được đặt lại thành công' };
   }
 
   async refresh(refreshToken: string) {

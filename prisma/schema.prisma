@@ -147,3 +147,16 @@ model RefreshToken {
   @@index([userId])
   @@map("refresh_tokens")
 }
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@map("password_reset_tokens")
+}
