@@ -92,7 +92,7 @@ export class AuthController {
       httpOnly: true,
       secure: false,
       sameSite: 'lax',
-      path: '/auth',
+      path: '/',
     });
 
     return result;
@@ -125,7 +125,7 @@ export class AuthController {
       secure: false,
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/auth',
+      path: '/',
     });
   }
 }
