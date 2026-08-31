@@ -10,7 +10,7 @@ import { RolesModule } from './roles/roles.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { AuthModule } from './auth/auth.module';
-
+import { BranchesModule } from './branches/branches.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -31,6 +31,7 @@ import { AuthModule } from './auth/auth.module';
     RolesModule,
     MembershipsModule,
     PermissionsModule,
+    BranchesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

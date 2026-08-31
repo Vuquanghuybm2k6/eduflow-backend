@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { Membership } from '../../memberships/entities/membership.entity';
 import { Role } from '../../roles/entities/role.entity';
+import { Branch } from '../../branches/entities/branch.entity';
 
 export enum OrganizationStatus {
   ACTIVE = 'ACTIVE',
@@ -53,6 +54,9 @@ export class Organization {
 
   @OneToMany(() => Role, (role) => role.organization)
   roles!: Role[];
+
+  @OneToMany(() => Branch, (branch) => branch.organization)
+  branches!: Branch[];
 
   @CreateDateColumn({ type: 'timestamp', precision: 3 })
   createdAt!: Date;

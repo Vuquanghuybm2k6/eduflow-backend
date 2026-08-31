@@ -41,6 +41,6 @@ import { PasswordResetToken } from './entities/password-reset-token.entity';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
-  exports: [AuthService],
+  exports: [AuthService, PassportModule, JwtModule],
 })
 export class AuthModule {}

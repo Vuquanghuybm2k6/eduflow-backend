@@ -1,0 +1,129 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BranchesService } from './branches.service';
+import { Branch, BranchStatus } from './entities/branch.entity';
+import { Membership } from '../memberships/entities/membership.entity';
+
+describe('BranchesService', () => {
+  let service: BranchesService;
+
+  const branchRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    find: jest.fn(),
+    findOneBy: jest.fn(),
+    remove: jest.fn(),
+  };
+
+  const membershipQueryBuilder = {
+    innerJoinAndSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    getOne: jest.fn(),
+  };
+
+  const membershipsRepository = {
+    createQueryBuilder: jest.fn().mockReturnValue(membershipQueryBuilder),
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BranchesService,
+        {
+          provide: getRepositoryToken(Branch),
+          useValue: branchRepository,
+        },
+        {
+          provide: getRepositoryToken(Membership),
+          useValue: membershipsRepository,
+        },
+      ],
+    }).compile();
+
+    service = module.get<BranchesService>(BranchesService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('resolveOrganizationId', () => {
+    it('throws ForbiddenException when user has no active membership', async () => {
+      membershipQueryBuilder.getOne.mockResolvedValue(null);
+
+      await expect(
+        service.create('user-1', { name: 'Branch', code: 'BR-1' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('create', () => {
+    it('creates a branch within the resolved organization', async () => {
+      const membership = {
+        organizationId: 'org-1',
+      } as Partial<Membership>;
+      const branch = {
+        id: 'branch-1',
+        organizationId: 'org-1',
+        name: 'Branch',
+        code: 'BR-1',
+        status: BranchStatus.ACTIVE,
+      } as Branch;
+
+      membershipQueryBuilder.getOne.mockResolvedValue(membership);
+      branchRepository.create.mockReturnValue(branch);
+      branchRepository.save.mockResolvedValue(branch);
+
+      const result = await service.create('user-1', {
+        name: 'Branch',
+        code: 'BR-1',
+      });
+
+      expect(branchRepository.create).toHaveBeenCalledWith({
+        name: 'Branch',
+        code: 'BR-1',
+        organizationId: 'org-1',
+      });
+      expect(result).toEqual(branch);
+    });
+  });
+
+  describe('findOne', () => {
+    it('throws NotFoundException when branch does not exist in org', async () => {
+      membershipQueryBuilder.getOne.mockResolvedValue({
+        organizationId: 'org-1',
+      });
+      branchRepository.findOneBy.mockResolvedValue(null);
+
+      await expect(
+        service.findOne('user-1', 'branch-x'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(branchRepository.findOneBy).toHaveBeenCalledWith({
+        id: 'branch-x',
+        organizationId: 'org-1',
+      });
+    });
+  });
+
+  describe('remove', () => {
+    it('removes an existing branch in the org', async () => {
+      const branch = { id: 'branch-1' } as Branch;
+      membershipQueryBuilder.getOne.mockResolvedValue({
+        organizationId: 'org-1',
+      });
+      branchRepository.findOneBy.mockResolvedValue(branch);
+      branchRepository.remove.mockResolvedValue(branch);
+
+      const result = await service.remove('user-1', 'branch-1');
+
+      expect(branchRepository.remove).toHaveBeenCalledWith(branch);
+      expect(result).toEqual({ id: 'branch-1' });
+    });
+  });
+});
