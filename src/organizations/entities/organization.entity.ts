@@ -9,6 +9,7 @@ import {
 import { Membership } from '../../memberships/entities/membership.entity';
 import { Role } from '../../roles/entities/role.entity';
 import { Branch } from '../../branches/entities/branch.entity';
+import { AcademicYear } from '../../academic-years/entities/academic-year.entity';
 
 export enum OrganizationStatus {
   ACTIVE = 'ACTIVE',
@@ -57,6 +58,9 @@ export class Organization {
 
   @OneToMany(() => Branch, (branch) => branch.organization)
   branches!: Branch[];
+
+  @OneToMany(() => AcademicYear, (academicYear) => academicYear.organization)
+  academicYears!: AcademicYear[];
 
   @CreateDateColumn({ type: 'timestamp', precision: 3 })
   createdAt!: Date;

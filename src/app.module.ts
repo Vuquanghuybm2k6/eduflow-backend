@@ -11,6 +11,7 @@ import { MembershipsModule } from './memberships/memberships.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { AuthModule } from './auth/auth.module';
 import { BranchesModule } from './branches/branches.module';
+import { AcademicYearsModule } from './academic-years/academic-years.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -32,6 +33,7 @@ import { BranchesModule } from './branches/branches.module';
     MembershipsModule,
     PermissionsModule,
     BranchesModule,
+    AcademicYearsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
