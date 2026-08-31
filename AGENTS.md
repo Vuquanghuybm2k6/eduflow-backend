@@ -9,7 +9,7 @@ The backend is built with:
 
 - NestJS
 - PostgreSQL
-- Prisma
+- TypeORM
 - Redis
 - JWT
 - Jest
@@ -42,9 +42,9 @@ src/
 
 - Controllers handle HTTP requests only.
 - Business logic belongs in services.
-- Database access must go through Prisma.
+- Database access must go through TypeORM repositories/services.
 - Do not put business logic inside controllers.
-- Do not access Prisma directly from controllers.
+- Do not access repositories directly from controllers.
 - Use DTOs for request validation.
 - Use class-validator for validation.
 - Use guards for authentication and authorization.
@@ -70,7 +70,7 @@ Example:
 
 Correct:
 
-prisma.student.findMany({
+studentRepository.find({
   where: {
     organizationId: currentOrganizationId
   }
@@ -78,7 +78,7 @@ prisma.student.findMany({
 
 Incorrect:
 
-prisma.student.findMany()
+studentRepository.find()
 
 ## Authorization
 
@@ -99,9 +99,13 @@ Prefer centralized guards/decorators.
 
 ## Database
 
-Use PostgreSQL with Prisma.
+Use PostgreSQL with TypeORM.
 
 Follow these rules:
+
+- Define entities in each module's entities folder.
+- Use DataSource.transaction for multi-step writes.
+- Keep synchronize disabled; manage schema via migrations.
 
 - Use UUIDs for primary keys.
 - Use foreign keys.
@@ -177,7 +181,7 @@ Do not introduce microservices unless explicitly required.
 Before modifying code:
 
 1. Understand the existing module structure.
-2. Check related DTOs, services, controllers and Prisma schema.
+2. Check related DTOs, services, controllers and TypeORM entities.
 3. Reuse existing patterns.
 4. Do not create duplicate utilities.
 5. Do not change unrelated files.

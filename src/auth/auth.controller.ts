@@ -72,7 +72,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const refreshToken = (req as any).cookies?.refresh_token;
+    const refreshToken = req.cookies?.refresh_token as string | undefined;
     const result = await this.authService.refresh(refreshToken);
 
     this.setRefreshTokenCookie(res, result.refreshToken);
@@ -85,7 +85,7 @@ export class AuthController {
 
   @Post('logout')
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const refreshToken = (req as any).cookies?.refresh_token;
+    const refreshToken = req.cookies?.refresh_token as string | undefined;
     const result = await this.authService.logoutByRefreshToken(refreshToken);
 
     res.clearCookie('refresh_token', {

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UsersService } from '../../users/users.service';
+import { UserStatus } from '../../users/entities/user.entity';
 
 export interface JwtPayload {
   sub: string;
@@ -17,7 +18,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
-        (request: any) => request?.cookies?.access_token,
+        (request) =>
+          request
+            ? ((request as { cookies?: Record<string, string> }).cookies
+                ?.access_token ?? null)
+            : null,
         ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
       ignoreExpiration: false,
@@ -27,7 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: JwtPayload) {
     const user = await this.usersService.findById(payload.sub);
-    if (!user || user.status !== 'ACTIVE') {
+    if (!user || user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException();
     }
     return { userId: payload.sub, email: payload.email };

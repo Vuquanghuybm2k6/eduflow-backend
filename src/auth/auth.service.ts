@@ -7,12 +7,19 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, IsNull, MoreThan, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
-import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
+import { User, UserStatus } from '../users/entities/user.entity';
+import { Organization } from '../organizations/entities/organization.entity';
+import { Role } from '../roles/entities/role.entity';
+import { Membership } from '../memberships/entities/membership.entity';
+import { RefreshToken } from './entities/refresh-token.entity';
+import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -23,7 +30,13 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly dataSource: DataSource,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(RefreshToken)
+    private readonly refreshTokenRepository: Repository<RefreshToken>,
+    @InjectRepository(PasswordResetToken)
+    private readonly passwordResetTokenRepository: Repository<PasswordResetToken>,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
@@ -38,38 +51,38 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    const user = await this.prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({
-        data: {
+    const user = await this.dataSource.transaction(async (manager) => {
+      const newUser = await manager.save(
+        manager.create(User, {
           email: dto.email,
           passwordHash,
           fullName: dto.fullName,
           phone: dto.phone,
-        },
-      });
+        }),
+      );
 
-      const org = await tx.organization.create({
-        data: {
+      const org = await manager.save(
+        manager.create(Organization, {
           name: `${dto.fullName}'s Organization`,
           slug: `org-${newUser.id.slice(0, 8)}`,
-        },
-      });
+        }),
+      );
 
-      const role = await tx.role.create({
-        data: {
+      const role = await manager.save(
+        manager.create(Role, {
           name: 'Admin',
           organizationId: org.id,
           isSystem: true,
-        },
-      });
+        }),
+      );
 
-      await tx.membership.create({
-        data: {
+      await manager.save(
+        manager.create(Membership, {
           userId: newUser.id,
           organizationId: org.id,
           roleId: role.id,
-        },
-      });
+        }),
+      );
 
       return newUser;
     });
@@ -97,7 +110,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    if (user.status !== 'ACTIVE') {
+    if (user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException('Account is not active');
     }
 
@@ -141,49 +154,53 @@ export class AuthService {
     let user = existing;
 
     if (!user) {
-      user = await this.prisma.$transaction(async (tx) => {
-        const newUser = await tx.user.create({
-          data: {
+      user = await this.dataSource.transaction(async (manager) => {
+        const newUser = await manager.save(
+          manager.create(User, {
             email,
             fullName: payload.name ?? email.split('@')[0],
             avatarUrl: payload.picture ?? null,
             googleId: payload.sub,
-          },
-        });
+          }),
+        );
 
-        const org = await tx.organization.create({
-          data: {
+        const org = await manager.save(
+          manager.create(Organization, {
             name: `${newUser.fullName}'s Organization`,
             slug: `org-${newUser.id.slice(0, 8)}`,
-          },
-        });
+          }),
+        );
 
-        const role = await tx.role.create({
-          data: {
+        const role = await manager.save(
+          manager.create(Role, {
             name: 'Admin',
             organizationId: org.id,
             isSystem: true,
-          },
-        });
+          }),
+        );
 
-        await tx.membership.create({
-          data: {
+        await manager.save(
+          manager.create(Membership, {
             userId: newUser.id,
             organizationId: org.id,
             roleId: role.id,
-          },
-        });
+          }),
+        );
 
         return newUser;
       });
     } else {
-      user = await this.prisma.user.update({
-        where: { id: user.id },
-        data: { googleId: payload.sub },
-      });
+      await this.userRepository.update(
+        { id: user.id },
+        { googleId: payload.sub },
+      );
+      user = await this.usersService.findById(user.id);
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
     }
 
-    if (user.status !== 'ACTIVE') {
+    if (user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException('Account is not active');
     }
 
@@ -200,7 +217,7 @@ export class AuthService {
   async forgotPassword(email: string) {
     const user = await this.usersService.findByEmail(email);
 
-    if (!user || user.status !== 'ACTIVE') {
+    if (!user || user.status !== UserStatus.ACTIVE) {
       return {
         message: 'Nếu email tồn tại, mã OTP đã được gửi đến email của bạn.',
       };
@@ -210,15 +227,16 @@ export class AuthService {
     const tokenHash = await bcrypt.hash(otp, 10);
     const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
 
-    await this.prisma.$transaction([
-      this.prisma.passwordResetToken.updateMany({
-        where: { email, usedAt: null },
-        data: { usedAt: new Date() },
-      }),
-      this.prisma.passwordResetToken.create({
-        data: { email, tokenHash, expiresAt },
-      }),
-    ]);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(
+        PasswordResetToken,
+        { email, usedAt: IsNull() },
+        { usedAt: new Date() },
+      );
+      await manager.save(
+        manager.create(PasswordResetToken, { email, tokenHash, expiresAt }),
+      );
+    });
 
     try {
       await this.mailService.sendOtpEmail(user.email, otp);
@@ -232,11 +250,15 @@ export class AuthService {
   }
 
   async verifyOtp(email: string, otp: string) {
-    const validTokens = await this.prisma.passwordResetToken.findMany({
-      where: { email, usedAt: null, expiresAt: { gt: new Date() } },
+    const validTokens = await this.passwordResetTokenRepository.find({
+      where: {
+        email,
+        usedAt: IsNull(),
+        expiresAt: MoreThan(new Date()),
+      },
     });
 
-    let matchedToken: (typeof validTokens)[number] | undefined;
+    let matchedToken: PasswordResetToken | undefined;
     for (const t of validTokens) {
       if (await bcrypt.compare(otp, t.tokenHash)) {
         matchedToken = t;
@@ -272,40 +294,38 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: payload.sub },
-        data: { passwordHash, updatedAt: new Date() },
-      }),
-      this.prisma.passwordResetToken.update({
-        where: { id: payload.otpId },
-        data: { usedAt: new Date() },
-      }),
-      this.prisma.refreshToken.updateMany({
-        where: { userId: payload.sub, revokedAt: null },
-        data: { revokedAt: new Date() },
-      }),
-    ]);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(User, { id: payload.sub }, { passwordHash });
+      await manager.update(
+        PasswordResetToken,
+        { id: payload.otpId },
+        { usedAt: new Date() },
+      );
+      await manager.update(
+        RefreshToken,
+        { userId: payload.sub, revokedAt: IsNull() },
+        { revokedAt: new Date() },
+      );
+    });
 
     return { message: 'Mật khẩu đã được đặt lại thành công' };
   }
 
-  async refresh(refreshToken: string) {
+  async refresh(refreshToken?: string) {
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token not found');
     }
 
     try {
-      const payload = this.jwtService.verify(refreshToken, {
+      const payload = this.jwtService.verify<{ sub: string }>(refreshToken, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
 
-      const tokenHash = await bcrypt.hash(refreshToken, 10);
-      const storedToken = await this.prisma.refreshToken.findFirst({
+      const storedToken = await this.refreshTokenRepository.findOne({
         where: {
           userId: payload.sub,
-          revokedAt: null,
-          expiresAt: { gt: new Date() },
+          revokedAt: IsNull(),
+          expiresAt: MoreThan(new Date()),
         },
       });
 
@@ -316,21 +336,21 @@ export class AuthService {
       const isValid = await bcrypt.compare(refreshToken, storedToken.tokenHash);
       if (!isValid) {
         // Possible token theft — revoke all user tokens
-        await this.prisma.refreshToken.updateMany({
-          where: { userId: payload.sub },
-          data: { revokedAt: new Date() },
-        });
+        await this.refreshTokenRepository.update(
+          { userId: payload.sub },
+          { revokedAt: new Date() },
+        );
         throw new UnauthorizedException('Invalid refresh token');
       }
 
       // Rotate: revoke old token, issue new ones
-      await this.prisma.refreshToken.update({
-        where: { id: storedToken.id },
-        data: { revokedAt: new Date() },
-      });
+      await this.refreshTokenRepository.update(
+        { id: storedToken.id },
+        { revokedAt: new Date() },
+      );
 
       const user = await this.usersService.findById(payload.sub);
-      if (!user || user.status !== 'ACTIVE') {
+      if (!user || user.status !== UserStatus.ACTIVE) {
         throw new UnauthorizedException('Account is not active');
       }
 
@@ -352,17 +372,17 @@ export class AuthService {
 
   async logout(userId: string, refreshToken?: string) {
     if (refreshToken) {
-      const storedTokens = await this.prisma.refreshToken.findMany({
-        where: { userId, revokedAt: null },
+      const storedTokens = await this.refreshTokenRepository.find({
+        where: { userId, revokedAt: IsNull() },
       });
 
       for (const stored of storedTokens) {
         const isValid = await bcrypt.compare(refreshToken, stored.tokenHash);
         if (isValid) {
-          await this.prisma.refreshToken.update({
-            where: { id: stored.id },
-            data: { revokedAt: new Date() },
-          });
+          await this.refreshTokenRepository.update(
+            { id: stored.id },
+            { revokedAt: new Date() },
+          );
           break;
         }
       }
@@ -377,21 +397,21 @@ export class AuthService {
     }
 
     try {
-      const payload = this.jwtService.verify(refreshToken, {
+      const payload = this.jwtService.verify<{ sub: string }>(refreshToken, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
 
-      const storedTokens = await this.prisma.refreshToken.findMany({
-        where: { userId: payload.sub, revokedAt: null },
+      const storedTokens = await this.refreshTokenRepository.find({
+        where: { userId: payload.sub, revokedAt: IsNull() },
       });
 
       for (const stored of storedTokens) {
         const isValid = await bcrypt.compare(refreshToken, stored.tokenHash);
         if (isValid) {
-          await this.prisma.refreshToken.update({
-            where: { id: stored.id },
-            data: { revokedAt: new Date() },
-          });
+          await this.refreshTokenRepository.update(
+            { id: stored.id },
+            { revokedAt: new Date() },
+          );
           break;
         }
       }
@@ -432,17 +452,18 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    await this.prisma.refreshToken.create({
-      data: {
+    await this.refreshTokenRepository.save(
+      this.refreshTokenRepository.create({
         userId,
         tokenHash,
         expiresAt,
-      },
-    });
+      }),
+    );
   }
 
-  private sanitizeUser(user: any) {
-    const { passwordHash, ...rest } = user;
+  private sanitizeUser(user: User) {
+    const { passwordHash: _passwordHash, ...rest } = user;
+    void _passwordHash;
     return rest;
   }
 }

@@ -57,11 +57,9 @@ export class MailService {
         html,
       });
       this.logger.log(`OTP email sent to ${email}`);
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to send OTP email to ${email}`,
-        error?.stack ?? error,
-      );
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.stack : String(error);
+      this.logger.error(`Failed to send OTP email to ${email}`, detail);
       throw error;
     }
   }
