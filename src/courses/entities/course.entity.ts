@@ -11,15 +11,14 @@ import {
 
 import { Organization } from '../../organizations/entities/organization.entity';
 
-export enum AcademicYearStatus {
+export enum CourseStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
-  COMPLETED = 'completed',
 }
 
-@Entity('academic_years')
-@Unique(['organizationId', 'name'])
-export class AcademicYear {
+@Entity('courses')
+@Unique(['organizationId', 'code'])
+export class Course {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
@@ -30,21 +29,27 @@ export class AcademicYear {
   @Column({ type: 'text' })
   name!: string;
 
-  @Column({ type: 'date' })
-  startDate!: Date;
+  @Column({ type: 'text' })
+  code!: string;
 
-  @Column({ type: 'date' })
-  endDate!: Date;
+  @Column({ type: 'text', nullable: true })
+  description!: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  duration!: number | null;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, nullable: true })
+  tuitionFee!: number | null;
 
   @Column({
     type: 'enum',
-    enum: AcademicYearStatus,
-    enumName: 'AcademicYearStatus',
-    default: AcademicYearStatus.ACTIVE,
+    enum: CourseStatus,
+    enumName: 'CourseStatus',
+    default: CourseStatus.ACTIVE,
   })
-  status!: AcademicYearStatus;
+  status!: CourseStatus;
 
-  @ManyToOne(() => Organization, (organization) => organization.academicYears, {
+  @ManyToOne(() => Organization, (organization) => organization.courses, {
     onDelete: 'CASCADE',
   })
   organization!: Organization;

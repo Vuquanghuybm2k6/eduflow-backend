@@ -11,7 +11,6 @@ import { MembershipsModule } from './memberships/memberships.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { AuthModule } from './auth/auth.module';
 import { BranchesModule } from './branches/branches.module';
-import { AcademicYearsModule } from './academic-years/academic-years.module';
 import { CoursesModule } from './courses/courses.module';
 @Module({
   imports: [
@@ -34,7 +33,6 @@ import { CoursesModule } from './courses/courses.module';
     MembershipsModule,
     PermissionsModule,
     BranchesModule,
-    AcademicYearsModule,
     CoursesModule,
   ],
   controllers: [AppController],

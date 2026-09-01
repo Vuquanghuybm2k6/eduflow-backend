@@ -10,7 +10,7 @@ import { RolePermission } from './roles/entities/role-permission.entity';
 import { Permission } from './permissions/entities/permission.entity';
 import { Membership } from './memberships/entities/membership.entity';
 import { Branch } from './branches/entities/branch.entity';
-import { AcademicYear } from './academic-years/entities/academic-year.entity';
+import { Course } from './courses/entities/course.entity';
 import { RefreshToken } from './auth/entities/refresh-token.entity';
 import { VerificationToken } from './auth/entities/verification-token.entity';
 
@@ -25,7 +25,7 @@ export const AppDataSource = new DataSource({
     Permission,
     Membership,
     Branch,
-    AcademicYear,
+    Course,
     RefreshToken,
     VerificationToken,
   ],
