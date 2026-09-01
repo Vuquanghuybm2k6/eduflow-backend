@@ -12,6 +12,7 @@ import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { VerificationToken } from './entities/verification-token.entity';
+import { Membership } from '../memberships/entities/membership.entity';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -32,6 +33,13 @@ describe('AuthService', () => {
     create: jest.Mock;
   };
   let verificationTokenRepository: { find: jest.Mock };
+  let membershipRepository: {
+    find: jest.Mock;
+    findOne: jest.Mock;
+    update: jest.Mock;
+    save: jest.Mock;
+    create: jest.Mock;
+  };
   let users: { findByEmail: jest.Mock; findById: jest.Mock };
   let mail: { sendOtpEmail: jest.Mock };
   let jwt: { signAsync: jest.Mock; verifyAsync: jest.Mock };
@@ -62,6 +70,13 @@ describe('AuthService', () => {
       create: jest.fn((data: unknown) => data),
     };
     verificationTokenRepository = { find: jest.fn() };
+    membershipRepository = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      update: jest.fn().mockResolvedValue(undefined),
+      save: jest.fn((entity: unknown) => entity),
+      create: jest.fn((data: unknown) => data),
+    };
     users = { findByEmail: jest.fn(), findById: jest.fn() };
     mail = { sendOtpEmail: jest.fn().mockResolvedValue(undefined) };
     jwt = { signAsync: jest.fn(), verifyAsync: jest.fn() };
@@ -78,6 +93,10 @@ describe('AuthService', () => {
         {
           provide: getRepositoryToken(VerificationToken),
           useValue: verificationTokenRepository,
+        },
+        {
+          provide: getRepositoryToken(Membership),
+          useValue: membershipRepository,
         },
         { provide: UsersService, useValue: users },
         { provide: JwtService, useValue: jwt },
@@ -217,6 +236,14 @@ describe('AuthService', () => {
           }),
         } as unknown as LoginTicket);
       jwt.signAsync.mockResolvedValue('signed-token');
+      membershipRepository.find.mockResolvedValue([
+        {
+          id: 'membership-1',
+          organizationId: 'org-1',
+          organization: { name: "User's Organization" },
+          role: { name: 'Admin' },
+        },
+      ]);
     });
 
     afterEach(() => {

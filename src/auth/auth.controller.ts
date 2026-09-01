@@ -16,6 +16,7 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { VerifyRegistrationOtpDto } from './dto/verify-registration-otp.dto';
+import { SelectMembershipDto } from './dto/select-membership.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 
@@ -50,11 +51,32 @@ export class AuthController {
   ) {
     const result = await this.authService.login(dto);
 
+    if (result.requiresMembershipSelection) {
+      return result;
+    }
+
     this.setRefreshTokenCookie(res, result.refreshToken);
 
     return {
       user: result.user,
       accessToken: result.accessToken,
+      organizationId: result.organizationId,
+    };
+  }
+
+  @Post('select-membership')
+  async selectMembership(
+    @Body() dto: SelectMembershipDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.selectMembership(dto);
+
+    this.setRefreshTokenCookie(res, result.refreshToken);
+
+    return {
+      user: result.user,
+      accessToken: result.accessToken,
+      organizationId: result.organizationId,
     };
   }
 
@@ -65,11 +87,16 @@ export class AuthController {
   ) {
     const result = await this.authService.loginWithGoogle(dto.idToken);
 
+    if (result.requiresMembershipSelection) {
+      return result;
+    }
+
     this.setRefreshTokenCookie(res, result.refreshToken);
 
     return {
       user: result.user,
       accessToken: result.accessToken,
+      organizationId: result.organizationId,
     };
   }
 
@@ -86,6 +113,7 @@ export class AuthController {
     return {
       user: result.user,
       accessToken: result.accessToken,
+      organizationId: result.organizationId,
     };
   }
 

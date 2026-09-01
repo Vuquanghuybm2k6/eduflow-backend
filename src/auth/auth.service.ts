@@ -32,6 +32,45 @@ import { VerifyRegistrationOtpDto } from './dto/verify-registration-otp.dto';
 
 const PASSWORD_RESET_TTL_MS = 3 * 60 * 1000; // 3 minutes
 
+export interface AuthSuccessResult {
+  requiresMembershipSelection: false;
+  user: {
+    id: string;
+    email: string;
+    fullName: string;
+    phone: string | null;
+    avatarUrl: string | null;
+    googleId: string | null;
+    status: UserStatus;
+    createdAt: Date;
+  };
+  accessToken: string;
+  refreshToken: string;
+  organizationId: string;
+}
+
+export interface MembershipSelectionResult {
+  requiresMembershipSelection: true;
+  user: {
+    id: string;
+    email: string;
+    fullName: string;
+    phone: string | null;
+    avatarUrl: string | null;
+    googleId: string | null;
+    status: UserStatus;
+    createdAt: Date;
+  };
+  memberships: {
+    membershipId: string;
+    organizationId: string;
+    organizationName: string | null;
+    roleName: string | null;
+  }[];
+}
+
+export type LoginResult = AuthSuccessResult | MembershipSelectionResult;
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -92,11 +131,9 @@ export class AuthService {
     };
   }
 
-  async verifyRegistrationOtp(dto: VerifyRegistrationOtpDto): Promise<{
-    user: Omit<User, 'passwordHash'>;
-    accessToken: string;
-    refreshToken: string;
-  }> {
+  async verifyRegistrationOtp(
+    dto: VerifyRegistrationOtpDto,
+  ): Promise<AuthSuccessResult> {
     const validTokens = await this.verificationTokenRepository.find({
       where: {
         email: dto.email,
@@ -127,7 +164,7 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    const user = await this.dataSource.transaction(async (manager) => {
+    const created = await this.dataSource.transaction(async (manager) => {
       await manager.update(
         VerificationToken,
         { id: matchedToken.id },
@@ -166,20 +203,16 @@ export class AuthService {
         }),
       );
 
-      return newUser;
+      return { user: newUser, organizationId: org.id };
     });
 
-    const tokens = await this.generateTokens(user.id, user.email);
-    await this.saveRefreshToken(user.id, tokens.refreshToken);
-
-    return {
-      user: this.sanitizeUser(user),
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    };
+    return this.issueTokensForOrganization(
+      created.user,
+      created.organizationId,
+    );
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto): Promise<LoginResult> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -199,7 +232,7 @@ export class AuthService {
     return this.resolveLogin(user);
   }
 
-  private async resolveLogin(user: User) {
+  private async resolveLogin(user: User): Promise<LoginResult> {
     const memberships = await this.getActiveMemberships(user.id);
 
     if (memberships.length === 0) {
@@ -222,7 +255,7 @@ export class AuthService {
     };
   }
 
-  async loginWithGoogle(idToken: string) {
+  async loginWithGoogle(idToken: string): Promise<LoginResult> {
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
     const client = new OAuth2Client(clientId);
 
@@ -414,7 +447,7 @@ export class AuthService {
     return { message: 'Máº­t kháº©u Ä‘Ã£ Ä‘Æ°á»£c Ä‘áº·t láº¡i thÃ nh cÃ´ng' };
   }
 
-  async refresh(refreshToken?: string) {
+  async refresh(refreshToken?: string): Promise<AuthSuccessResult> {
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token not found');
     }
@@ -457,13 +490,28 @@ export class AuthService {
         throw new UnauthorizedException('Account is not active');
       }
 
-      const tokens = await this.generateTokens(user.id, user.email);
-      await this.saveRefreshToken(user.id, tokens.refreshToken);
+      const organizationId = storedToken.organizationId;
+      if (!organizationId) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      const tokens = await this.generateTokens(
+        user.id,
+        user.email,
+        organizationId,
+      );
+      await this.saveRefreshToken(
+        user.id,
+        tokens.refreshToken,
+        organizationId,
+      );
 
       return {
+        requiresMembershipSelection: false,
         user: this.sanitizeUser(user),
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
+        organizationId,
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
@@ -553,7 +601,7 @@ export class AuthService {
   private async issueTokensForOrganization(
     user: User,
     organizationId: string,
-  ) {
+  ): Promise<AuthSuccessResult> {
     const tokens = await this.generateTokens(
       user.id,
       user.email,
@@ -562,6 +610,7 @@ export class AuthService {
     await this.saveRefreshToken(user.id, tokens.refreshToken, organizationId);
 
     return {
+      requiresMembershipSelection: false,
       user: this.sanitizeUser(user),
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
@@ -569,16 +618,27 @@ export class AuthService {
     };
   }
 
-  async selectMembership(dto: SelectMembershipDto, userId: string) {
-    const user = await this.usersService.findById(userId);
-    if (!user || user.status !== UserStatus.ACTIVE) {
+  async selectMembership(dto: SelectMembershipDto): Promise<AuthSuccessResult> {
+    const user = await this.usersService.findByEmail(dto.email);
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const isPasswordValid = user.passwordHash
+      ? await bcrypt.compare(dto.password, user.passwordHash)
+      : false;
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException('Account is not active');
     }
 
     const membership = await this.membershipRepository.findOne({
       where: {
         id: dto.membershipId,
-        userId,
+        userId: user.id,
         status: MembershipStatus.ACTIVE,
       },
     });

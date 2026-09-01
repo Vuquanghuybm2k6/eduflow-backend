@@ -12,6 +12,7 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { AuthModule } from './auth/auth.module';
 import { BranchesModule } from './branches/branches.module';
 import { AcademicYearsModule } from './academic-years/academic-years.module';
+import { CoursesModule } from './courses/courses.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -34,6 +35,7 @@ import { AcademicYearsModule } from './academic-years/academic-years.module';
     PermissionsModule,
     BranchesModule,
     AcademicYearsModule,
+    CoursesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
