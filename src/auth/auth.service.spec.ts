@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+﻿import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -11,7 +11,7 @@ import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
-import { PasswordResetToken } from './entities/password-reset-token.entity';
+import { VerificationToken } from './entities/verification-token.entity';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -31,7 +31,7 @@ describe('AuthService', () => {
     save: jest.Mock;
     create: jest.Mock;
   };
-  let passwordResetTokenRepository: { find: jest.Mock };
+  let verificationTokenRepository: { find: jest.Mock };
   let users: { findByEmail: jest.Mock; findById: jest.Mock };
   let mail: { sendOtpEmail: jest.Mock };
   let jwt: { signAsync: jest.Mock; verifyAsync: jest.Mock };
@@ -61,7 +61,7 @@ describe('AuthService', () => {
       save: jest.fn((entity: unknown) => entity),
       create: jest.fn((data: unknown) => data),
     };
-    passwordResetTokenRepository = { find: jest.fn() };
+    verificationTokenRepository = { find: jest.fn() };
     users = { findByEmail: jest.fn(), findById: jest.fn() };
     mail = { sendOtpEmail: jest.fn().mockResolvedValue(undefined) };
     jwt = { signAsync: jest.fn(), verifyAsync: jest.fn() };
@@ -76,8 +76,8 @@ describe('AuthService', () => {
           useValue: refreshTokenRepository,
         },
         {
-          provide: getRepositoryToken(PasswordResetToken),
-          useValue: passwordResetTokenRepository,
+          provide: getRepositoryToken(VerificationToken),
+          useValue: verificationTokenRepository,
         },
         { provide: UsersService, useValue: users },
         { provide: JwtService, useValue: jwt },
@@ -99,7 +99,7 @@ describe('AuthService', () => {
 
       const result = await service.forgotPassword('nobody@example.com');
 
-      expect(result.message).toContain('đã được gửi');
+      expect(result.message).toContain('Ä‘Ã£ Ä‘Æ°á»£c gá»­i');
       expect(mail.sendOtpEmail).not.toHaveBeenCalled();
       expect(dataSource.transaction).not.toHaveBeenCalled();
     });
@@ -114,10 +114,10 @@ describe('AuthService', () => {
 
       const result = await service.forgotPassword('a@b.com');
 
-      expect(result.message).toContain('đã được gửi');
+      expect(result.message).toContain('Ä‘Ã£ Ä‘Æ°á»£c gá»­i');
       expect(dataSource.transaction).toHaveBeenCalled();
       expect(dataSource.manager.update).toHaveBeenCalledWith(
-        PasswordResetToken,
+        VerificationToken,
         expect.objectContaining({ email: 'a@b.com' }),
         expect.any(Object),
       );
@@ -134,7 +134,7 @@ describe('AuthService', () => {
   describe('verifyOtp', () => {
     it('throws BadRequestException when no OTP matches', async () => {
       users.findByEmail.mockResolvedValue({ id: 'user-1', email: 'a@b.com' });
-      passwordResetTokenRepository.find.mockResolvedValue([]);
+      verificationTokenRepository.find.mockResolvedValue([]);
 
       await expect(service.verifyOtp('a@b.com', '000000')).rejects.toThrow(
         BadRequestException,
@@ -145,7 +145,7 @@ describe('AuthService', () => {
       const otp = '123456';
       const tokenHash = await bcrypt.hash(otp, 10);
       users.findByEmail.mockResolvedValue({ id: 'user-1', email: 'a@b.com' });
-      passwordResetTokenRepository.find.mockResolvedValue([
+      verificationTokenRepository.find.mockResolvedValue([
         { id: 'reset-1', email: 'a@b.com', tokenHash, usedAt: null },
       ]);
       jwt.signAsync.mockResolvedValue('signed-reset-token');
@@ -175,7 +175,7 @@ describe('AuthService', () => {
 
       const result = await service.resetPassword('good-token', 'new-pass-123');
 
-      expect(result.message).toContain('đặt lại');
+      expect(result.message).toContain('Ä‘áº·t láº¡i');
       expect(dataSource.transaction).toHaveBeenCalled();
       expect(dataSource.manager.update).toHaveBeenCalledWith(
         User,
@@ -185,7 +185,7 @@ describe('AuthService', () => {
         }),
       );
       expect(dataSource.manager.update).toHaveBeenCalledWith(
-        PasswordResetToken,
+        VerificationToken,
         { id: 'reset-1' },
         expect.objectContaining<Record<string, unknown>>({
           usedAt: expect.any(Date),

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -13,7 +13,7 @@ import { Organization } from '../organizations/entities/organization.entity';
 import { Role } from '../roles/entities/role.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
-import { PasswordResetToken } from './entities/password-reset-token.entity';
+import { VerificationToken } from './entities/verification-token.entity';
 
 @Module({
   imports: [
@@ -25,7 +25,7 @@ import { PasswordResetToken } from './entities/password-reset-token.entity';
       Role,
       Membership,
       RefreshToken,
-      PasswordResetToken,
+      VerificationToken,
     ]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({

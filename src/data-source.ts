@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+﻿import 'reflect-metadata';
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
 
@@ -12,7 +12,7 @@ import { Membership } from './memberships/entities/membership.entity';
 import { Branch } from './branches/entities/branch.entity';
 import { AcademicYear } from './academic-years/entities/academic-year.entity';
 import { RefreshToken } from './auth/entities/refresh-token.entity';
-import { PasswordResetToken } from './auth/entities/password-reset-token.entity';
+import { VerificationToken } from './auth/entities/verification-token.entity';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -27,7 +27,7 @@ export const AppDataSource = new DataSource({
     Branch,
     AcademicYear,
     RefreshToken,
-    PasswordResetToken,
+    VerificationToken,
   ],
   migrations: ['src/migrations/*.ts'],
   subscribers: [UuidValueGeneratorSubscriber],

@@ -63,4 +63,40 @@ export class MailService {
       throw error;
     }
   }
+
+  async sendRegistrationOtpEmail(email: string, otp: string): Promise<void> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
+        <h2 style="color: #333;">Xác nhận tài khoản EduFlow</h2>
+        <p>Cảm ơn bạn đã đăng ký tài khoản EduFlow.</p>
+        <p>Mã xác nhận (OTP) của bạn là:</p>
+        <p style="text-align: center; margin: 24px 0;">
+          <span style="display: inline-block; padding: 16px 32px; background-color: #f3f4f6; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #111827; border-radius: 8px;">
+            ${otp}
+          </span>
+        </p>
+        <p>Mã này có hiệu lực trong <strong>3 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
+        <p style="font-size: 13px; color: #777;">
+          Nếu bạn không yêu cầu đăng ký tài khoản này, hãy bỏ qua email này.
+        </p>
+      </div>
+    `;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.configService.get<string>('EMAIL_USER'),
+        to: email,
+        subject: 'Mã xác nhận đăng ký tài khoản EduFlow',
+        html,
+      });
+      this.logger.log(`Registration OTP email sent to ${email}`);
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.stack : String(error);
+      this.logger.error(
+        `Failed to send registration OTP email to ${email}`,
+        detail,
+      );
+      throw error;
+    }
+  }
 }

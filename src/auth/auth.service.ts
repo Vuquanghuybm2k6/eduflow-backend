@@ -1,10 +1,12 @@
-import {
+﻿import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,11 +19,16 @@ import { MailService } from '../mail/mail.service';
 import { User, UserStatus } from '../users/entities/user.entity';
 import { Organization } from '../organizations/entities/organization.entity';
 import { Role } from '../roles/entities/role.entity';
-import { Membership } from '../memberships/entities/membership.entity';
+import { Membership, MembershipStatus } from '../memberships/entities/membership.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
-import { PasswordResetToken } from './entities/password-reset-token.entity';
+import {
+  VerificationToken,
+  OtpPurpose,
+} from './entities/verification-token.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { SelectMembershipDto } from './dto/select-membership.dto';
+import { VerifyRegistrationOtpDto } from './dto/verify-registration-otp.dto';
 
 const PASSWORD_RESET_TTL_MS = 3 * 60 * 1000; // 3 minutes
 
@@ -35,15 +42,84 @@ export class AuthService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
-    @InjectRepository(PasswordResetToken)
-    private readonly passwordResetTokenRepository: Repository<PasswordResetToken>,
+    @InjectRepository(VerificationToken)
+    private readonly verificationTokenRepository: Repository<VerificationToken>,
+    @InjectRepository(Membership)
+    private readonly membershipRepository: Repository<Membership>,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
   ) {}
 
-  async register(dto: RegisterDto) {
+  async sendRegistrationOtp(dto: RegisterDto) {
+    const existing = await this.usersService.findByEmail(dto.email);
+    if (existing) {
+      throw new ConflictException('Email already exists');
+    }
+
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const tokenHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(
+        VerificationToken,
+        { email: dto.email, usedAt: IsNull() },
+        { usedAt: new Date() },
+      );
+      await manager.save(
+        manager.create(VerificationToken, {
+          email: dto.email,
+          tokenHash,
+          expiresAt,
+          purpose: OtpPurpose.REGISTRATION,
+        }),
+      );
+    });
+
+    try {
+      await this.mailService.sendRegistrationOtpEmail(dto.email, otp);
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to send registration OTP email to ${dto.email}`,
+        error,
+      );
+    }
+
+    return {
+      message: 'OTP Ä‘Ã£ Ä‘Æ°á»£c gá»­i Ä‘áº¿n email cá»§a báº¡n.',
+    };
+  }
+
+  async verifyRegistrationOtp(dto: VerifyRegistrationOtpDto): Promise<{
+    user: Omit<User, 'passwordHash'>;
+    accessToken: string;
+    refreshToken: string;
+  }> {
+    const validTokens = await this.verificationTokenRepository.find({
+      where: {
+        email: dto.email,
+        usedAt: IsNull(),
+        expiresAt: MoreThan(new Date()),
+        purpose: OtpPurpose.REGISTRATION,
+      },
+    });
+
+    let matchedToken: VerificationToken | undefined;
+    for (const t of validTokens) {
+      if (await bcrypt.compare(dto.otp, t.tokenHash)) {
+        matchedToken = t;
+        break;
+      }
+    }
+
+    if (!matchedToken) {
+      throw new BadRequestException(
+        'OTP khÃ´ng há»£p lá»‡ hoáº·c Ä‘Ã£ háº¿t háº¡n',
+      );
+    }
+
     const existing = await this.usersService.findByEmail(dto.email);
     if (existing) {
       throw new ConflictException('Email already exists');
@@ -52,6 +128,12 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     const user = await this.dataSource.transaction(async (manager) => {
+      await manager.update(
+        VerificationToken,
+        { id: matchedToken.id },
+        { usedAt: new Date() },
+      );
+
       const newUser = await manager.save(
         manager.create(User, {
           email: dto.email,
@@ -63,14 +145,14 @@ export class AuthService {
 
       const org = await manager.save(
         manager.create(Organization, {
-          name: `${dto.fullName}'s Organization`,
+          name: dto.organizationName,
           slug: `org-${newUser.id.slice(0, 8)}`,
         }),
       );
 
       const role = await manager.save(
         manager.create(Role, {
-          name: 'Admin',
+          name: 'Organization Owner',
           organizationId: org.id,
           isSystem: true,
         }),
@@ -114,13 +196,29 @@ export class AuthService {
       throw new UnauthorizedException('Account is not active');
     }
 
-    const tokens = await this.generateTokens(user.id, user.email);
-    await this.saveRefreshToken(user.id, tokens.refreshToken);
+    return this.resolveLogin(user);
+  }
+
+  private async resolveLogin(user: User) {
+    const memberships = await this.getActiveMemberships(user.id);
+
+    if (memberships.length === 0) {
+      throw new ForbiddenException(
+        'No active organization found for this account',
+      );
+    }
+
+    if (memberships.length === 1) {
+      return this.issueTokensForOrganization(
+        user,
+        memberships[0].organizationId,
+      );
+    }
 
     return {
       user: this.sanitizeUser(user),
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
+      requiresMembershipSelection: true,
+      memberships: memberships.map((m) => this.toMembershipOption(m)),
     };
   }
 
@@ -204,14 +302,7 @@ export class AuthService {
       throw new UnauthorizedException('Account is not active');
     }
 
-    const tokens = await this.generateTokens(user.id, user.email);
-    await this.saveRefreshToken(user.id, tokens.refreshToken);
-
-    return {
-      user: this.sanitizeUser(user),
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    };
+    return this.resolveLogin(user);
   }
 
   async forgotPassword(email: string) {
@@ -219,7 +310,8 @@ export class AuthService {
 
     if (!user || user.status !== UserStatus.ACTIVE) {
       return {
-        message: 'Nếu email tồn tại, mã OTP đã được gửi đến email của bạn.',
+        message:
+          'Náº¿u email tá»“n táº¡i, mÃ£ OTP Ä‘Ã£ Ä‘Æ°á»£c gá»­i Ä‘áº¿n email cá»§a báº¡n.',
       };
     }
 
@@ -229,12 +321,17 @@ export class AuthService {
 
     await this.dataSource.transaction(async (manager) => {
       await manager.update(
-        PasswordResetToken,
+        VerificationToken,
         { email, usedAt: IsNull() },
         { usedAt: new Date() },
       );
       await manager.save(
-        manager.create(PasswordResetToken, { email, tokenHash, expiresAt }),
+        manager.create(VerificationToken, {
+          email,
+          tokenHash,
+          expiresAt,
+          purpose: OtpPurpose.PASSWORD_RESET,
+        }),
       );
     });
 
@@ -245,20 +342,22 @@ export class AuthService {
     }
 
     return {
-      message: 'Nếu email tồn tại, mã OTP đã được gửi đến email của bạn.',
+      message:
+        'Náº¿u email tá»“n táº¡i, mÃ£ OTP Ä‘Ã£ Ä‘Æ°á»£c gá»­i Ä‘áº¿n email cá»§a báº¡n.',
     };
   }
 
   async verifyOtp(email: string, otp: string) {
-    const validTokens = await this.passwordResetTokenRepository.find({
+    const validTokens = await this.verificationTokenRepository.find({
       where: {
         email,
         usedAt: IsNull(),
         expiresAt: MoreThan(new Date()),
+        purpose: OtpPurpose.PASSWORD_RESET,
       },
     });
 
-    let matchedToken: PasswordResetToken | undefined;
+    let matchedToken: VerificationToken | undefined;
     for (const t of validTokens) {
       if (await bcrypt.compare(otp, t.tokenHash)) {
         matchedToken = t;
@@ -267,7 +366,9 @@ export class AuthService {
     }
 
     if (!matchedToken) {
-      throw new BadRequestException('OTP không hợp lệ hoặc đã hết hạn');
+      throw new BadRequestException(
+        'OTP khÃ´ng há»£p lá»‡ hoáº·c Ä‘Ã£ háº¿t háº¡n',
+      );
     }
 
     const user = await this.usersService.findByEmail(email);
@@ -289,7 +390,9 @@ export class AuthService {
         secret: this.configService.get<string>('JWT_RESET_SECRET'),
       });
     } catch {
-      throw new BadRequestException('Token không hợp lệ hoặc đã hết hạn');
+      throw new BadRequestException(
+        'Token khÃ´ng há»£p lá»‡ hoáº·c Ä‘Ã£ háº¿t háº¡n',
+      );
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -297,7 +400,7 @@ export class AuthService {
     await this.dataSource.transaction(async (manager) => {
       await manager.update(User, { id: payload.sub }, { passwordHash });
       await manager.update(
-        PasswordResetToken,
+        VerificationToken,
         { id: payload.otpId },
         { usedAt: new Date() },
       );
@@ -308,7 +411,7 @@ export class AuthService {
       );
     });
 
-    return { message: 'Mật khẩu đã được đặt lại thành công' };
+    return { message: 'Máº­t kháº©u Ä‘Ã£ Ä‘Æ°á»£c Ä‘áº·t láº¡i thÃ nh cÃ´ng' };
   }
 
   async refresh(refreshToken?: string) {
@@ -335,7 +438,7 @@ export class AuthService {
 
       const isValid = await bcrypt.compare(refreshToken, storedToken.tokenHash);
       if (!isValid) {
-        // Possible token theft — revoke all user tokens
+        // Possible token theft â€” revoke all user tokens
         await this.refreshTokenRepository.update(
           { userId: payload.sub },
           { revokedAt: new Date() },
@@ -416,7 +519,7 @@ export class AuthService {
         }
       }
     } catch {
-      // Token invalid or expired — still return success
+      // Token invalid or expired â€” still return success
     }
 
     return { message: 'Logged out successfully' };
@@ -430,8 +533,71 @@ export class AuthService {
     return this.sanitizeUser(user);
   }
 
-  private async generateTokens(userId: string, email: string) {
-    const payload = { sub: userId, email };
+  private async getActiveMemberships(userId: string): Promise<Membership[]> {
+    return this.membershipRepository.find({
+      where: { userId, status: MembershipStatus.ACTIVE },
+      relations: { organization: true, role: true },
+      order: { joinedAt: 'ASC', createdAt: 'ASC' },
+    });
+  }
+
+  private toMembershipOption(membership: Membership) {
+    return {
+      membershipId: membership.id,
+      organizationId: membership.organizationId,
+      organizationName: membership.organization?.name ?? null,
+      roleName: membership.role?.name ?? null,
+    };
+  }
+
+  private async issueTokensForOrganization(
+    user: User,
+    organizationId: string,
+  ) {
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email,
+      organizationId,
+    );
+    await this.saveRefreshToken(user.id, tokens.refreshToken, organizationId);
+
+    return {
+      user: this.sanitizeUser(user),
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      organizationId,
+    };
+  }
+
+  async selectMembership(dto: SelectMembershipDto, userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException('Account is not active');
+    }
+
+    const membership = await this.membershipRepository.findOne({
+      where: {
+        id: dto.membershipId,
+        userId,
+        status: MembershipStatus.ACTIVE,
+      },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException(
+        'User does not have access to this organization',
+      );
+    }
+
+    return this.issueTokensForOrganization(user, membership.organizationId);
+  }
+
+  private async generateTokens(
+    userId: string,
+    email: string,
+    organizationId: string,
+  ) {
+    const payload = { sub: userId, email, organizationId };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
@@ -447,7 +613,11 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private async saveRefreshToken(userId: string, refreshToken: string) {
+  private async saveRefreshToken(
+    userId: string,
+    refreshToken: string,
+    organizationId: string,
+  ) {
     const tokenHash = await bcrypt.hash(refreshToken, 10);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
@@ -456,6 +626,7 @@ export class AuthService {
       this.refreshTokenRepository.create({
         userId,
         tokenHash,
+        organizationId,
         expiresAt,
       }),
     );

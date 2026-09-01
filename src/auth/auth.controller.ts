@@ -15,6 +15,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
+import { VerifyRegistrationOtpDto } from './dto/verify-registration-otp.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 
@@ -23,11 +24,16 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  async register(
-    @Body() dto: RegisterDto,
+  async register(@Body() dto: RegisterDto) {
+    return this.authService.sendRegistrationOtp(dto);
+  }
+
+  @Post('verify-registration-otp')
+  async verifyRegistrationOtp(
+    @Body() dto: VerifyRegistrationOtpDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.register(dto);
+    const result = await this.authService.verifyRegistrationOtp(dto);
 
     this.setRefreshTokenCookie(res, result.refreshToken);
 

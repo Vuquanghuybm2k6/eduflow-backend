@@ -22,6 +22,9 @@ export class RefreshToken {
   @Column({ type: 'text', unique: true })
   tokenHash!: string;
 
+  @Column({ type: 'text', nullable: true })
+  organizationId!: string | null;
+
   @Column({ type: 'timestamp', precision: 3 })
   expiresAt!: Date;
 

@@ -3,12 +3,17 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MinLength,
 } from 'class-validator';
 
-export class RegisterDto {
+export class VerifyRegistrationOtpDto {
   @IsEmail()
   email!: string;
+
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'OTP phải gồm đúng 6 chữ số' })
+  otp!: string;
 
   @IsString()
   @MinLength(6)
