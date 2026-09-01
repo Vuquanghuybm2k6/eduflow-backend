@@ -12,6 +12,7 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { AuthModule } from './auth/auth.module';
 import { BranchesModule } from './branches/branches.module';
 import { CoursesModule } from './courses/courses.module';
+import { ClassesModule } from './classes/classes.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -32,8 +33,9 @@ import { CoursesModule } from './courses/courses.module';
     RolesModule,
     MembershipsModule,
     PermissionsModule,
-    BranchesModule,
+BranchesModule,
     CoursesModule,
+    ClassesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

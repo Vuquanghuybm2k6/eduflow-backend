@@ -4,11 +4,13 @@ import {
   Entity,
   Index,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
 import { Organization } from '../../organizations/entities/organization.entity';
+import { Class } from '../../classes/entities/class.entity';
 
 export enum BranchStatus {
   ACTIVE = 'active',
@@ -48,6 +50,9 @@ export class Branch {
     onDelete: 'CASCADE',
   })
   organization!: Organization;
+
+  @OneToMany(() => Class, (classEntity) => classEntity.branch)
+  classes!: Class[];
 
   @CreateDateColumn({ type: 'timestamp', precision: 3 })
   createdAt!: Date;

@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Membership } from '../../memberships/entities/membership.entity';
 import { RefreshToken } from '../../auth/entities/refresh-token.entity';
+import { Class } from '../../classes/entities/class.entity';
 
 export enum UserStatus {
   ACTIVE = 'ACTIVE',
@@ -53,6 +54,9 @@ export class User {
 
   @OneToMany(() => RefreshToken, (refreshToken) => refreshToken.user)
   refreshTokens!: RefreshToken[];
+
+  @OneToMany(() => Class, (classEntity) => classEntity.teacher)
+  taughtClasses!: Class[];
 
   @CreateDateColumn({ type: 'timestamp', precision: 3 })
   createdAt!: Date;

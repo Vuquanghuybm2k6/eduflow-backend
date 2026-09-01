@@ -4,12 +4,14 @@ import {
   Entity,
   Index,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
 
 import { Organization } from '../../organizations/entities/organization.entity';
+import { Class } from '../../classes/entities/class.entity';
 
 export enum CourseStatus {
   ACTIVE = 'active',
@@ -53,6 +55,9 @@ export class Course {
     onDelete: 'CASCADE',
   })
   organization!: Organization;
+
+  @OneToMany(() => Class, (classEntity) => classEntity.course)
+  classes!: Class[];
 
   @CreateDateColumn({ type: 'timestamp', precision: 3 })
   createdAt!: Date;
