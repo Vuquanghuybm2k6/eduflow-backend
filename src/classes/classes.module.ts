@@ -6,7 +6,7 @@ import { Class } from './entities/class.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Branch } from '../branches/entities/branch.entity';
 import { Course } from '../courses/entities/course.entity';
-import { User } from '../users/entities/user.entity';
+import { Teacher } from '../teachers/entities/teacher.entity';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -16,7 +16,7 @@ import { AuthModule } from '../auth/auth.module';
       Membership,
       Branch,
       Course,
-      User,
+      Teacher,
     ]),
     AuthModule,
   ],

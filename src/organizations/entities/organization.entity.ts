@@ -11,6 +11,7 @@ import { Role } from '../../roles/entities/role.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 import { Course } from '../../courses/entities/course.entity';
 import { Class } from '../../classes/entities/class.entity';
+import { Teacher } from '../../teachers/entities/teacher.entity';
 
 export enum OrganizationStatus {
   ACTIVE = 'ACTIVE',
@@ -65,6 +66,9 @@ export class Organization {
 
   @OneToMany(() => Class, (classEntity) => classEntity.organization)
   classes!: Class[];
+
+  @OneToMany(() => Teacher, (teacher) => teacher.organization)
+  teachers!: Teacher[];
 
   @CreateDateColumn({ type: 'timestamp', precision: 3 })
   createdAt!: Date;

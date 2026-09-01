@@ -13,7 +13,7 @@ import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { Branch } from '../branches/entities/branch.entity';
 import { Course } from '../courses/entities/course.entity';
-import { User } from '../users/entities/user.entity';
+import { Teacher, TeacherStatus } from '../teachers/entities/teacher.entity';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 
@@ -32,8 +32,8 @@ export class ClassesService {
     private readonly branchesRepository: Repository<Branch>,
     @InjectRepository(Course)
     private readonly coursesRepository: Repository<Course>,
-    @InjectRepository(User)
-    private readonly usersRepository: Repository<User>,
+    @InjectRepository(Teacher)
+    private readonly teachersRepository: Repository<Teacher>,
   ) {}
 
   private async resolveOrganizationId(
@@ -160,23 +160,22 @@ export class ClassesService {
     }
 
     if (teacherId) {
-      const teacher = await this.usersRepository.findOne({
-        where: { id: teacherId },
-        select: ['id'],
+      const teacher = await this.teachersRepository.findOneBy({
+        id: teacherId,
       });
+
       if (!teacher) {
         throw new NotFoundException('Giáo viên không tồn tại');
       }
 
-      const membership = await this.membershipsRepository.findOneBy({
-        userId: teacherId,
-        organizationId,
-        status: MembershipStatus.ACTIVE,
-      });
-      if (!membership) {
+      if (teacher.organizationId !== organizationId) {
         throw new ForbiddenException(
           'Giáo viên không thuộc tổ chức hiện tại',
         );
+      }
+
+      if (teacher.status !== TeacherStatus.ACTIVE) {
+        throw new ForbiddenException('Giáo viên hiện không hoạt động');
       }
     }
   }

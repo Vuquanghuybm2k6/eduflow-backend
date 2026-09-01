@@ -13,6 +13,7 @@ import { AuthModule } from './auth/auth.module';
 import { BranchesModule } from './branches/branches.module';
 import { CoursesModule } from './courses/courses.module';
 import { ClassesModule } from './classes/classes.module';
+import { TeachersModule } from './teachers/teachers.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -36,6 +37,7 @@ import { ClassesModule } from './classes/classes.module';
 BranchesModule,
     CoursesModule,
     ClassesModule,
+    TeachersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

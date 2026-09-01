@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
   Unique,
@@ -12,7 +13,7 @@ import {
 import { Organization } from '../../organizations/entities/organization.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 import { Course } from '../../courses/entities/course.entity';
-import { User } from '../../users/entities/user.entity';
+import { Teacher } from '../../teachers/entities/teacher.entity';
 
 export enum ClassStatus {
   UPCOMING = 'UPCOMING',
@@ -81,11 +82,12 @@ export class Class {
   })
   course!: Course;
 
-  @ManyToOne(() => User, (user) => user.taughtClasses, {
+  @ManyToOne(() => Teacher, (teacher) => teacher.classes, {
     onDelete: 'SET NULL',
     nullable: true,
   })
-  teacher!: User | null;
+  @JoinColumn({ name: 'teacherId' })
+  teacher!: Teacher | null;
 
   @CreateDateColumn({ type: 'timestamp', precision: 3 })
   createdAt!: Date;

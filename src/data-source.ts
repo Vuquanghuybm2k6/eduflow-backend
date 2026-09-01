@@ -12,6 +12,7 @@ import { Membership } from './memberships/entities/membership.entity';
 import { Branch } from './branches/entities/branch.entity';
 import { Course } from './courses/entities/course.entity';
 import { Class } from './classes/entities/class.entity';
+import { Teacher } from './teachers/entities/teacher.entity';
 import { RefreshToken } from './auth/entities/refresh-token.entity';
 import { VerificationToken } from './auth/entities/verification-token.entity';
 
@@ -28,6 +29,7 @@ export const AppDataSource = new DataSource({
     Branch,
     Course,
     Class,
+    Teacher,
     RefreshToken,
     VerificationToken,
   ],
