@@ -6,7 +6,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UsersService } from '../../users/users.service';
 import { UserStatus } from '../../users/entities/user.entity';
-import { Membership, MembershipStatus } from '../../memberships/entities/membership.entity';
+import {
+  Membership,
+  MembershipStatus,
+} from '../../memberships/entities/membership.entity';
 
 export interface JwtPayload {
   sub: string;

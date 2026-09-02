@@ -144,9 +144,7 @@ export class ClassesService {
       select: ['organizationId'],
     });
     if (!branch || branch.organizationId !== organizationId) {
-      throw new ForbiddenException(
-        'Chi nhánh không thuộc tổ chức hiện tại',
-      );
+      throw new ForbiddenException('Chi nhánh không thuộc tổ chức hiện tại');
     }
 
     const course = await this.coursesRepository.findOne({
@@ -154,9 +152,7 @@ export class ClassesService {
       select: ['organizationId'],
     });
     if (!course || course.organizationId !== organizationId) {
-      throw new ForbiddenException(
-        'Khóa học không thuộc tổ chức hiện tại',
-      );
+      throw new ForbiddenException('Khóa học không thuộc tổ chức hiện tại');
     }
 
     if (teacherId) {
@@ -169,9 +165,7 @@ export class ClassesService {
       }
 
       if (teacher.organizationId !== organizationId) {
-        throw new ForbiddenException(
-          'Giáo viên không thuộc tổ chức hiện tại',
-        );
+        throw new ForbiddenException('Giáo viên không thuộc tổ chức hiện tại');
       }
 
       if (teacher.status !== TeacherStatus.ACTIVE) {
@@ -280,7 +274,7 @@ export class ClassesService {
     const teacherId =
       updateClassDto.teacherId !== undefined
         ? updateClassDto.teacherId
-        : classEntity.teacherId ?? undefined;
+        : (classEntity.teacherId ?? undefined);
     await this.assertReferencesInOrganization(
       organizationId,
       branchId,

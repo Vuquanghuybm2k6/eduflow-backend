@@ -8,25 +8,25 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { TeachersService } from './teachers.service';
-import { CreateTeacherDto } from './dto/create-teacher.dto';
-import { UpdateTeacherDto } from './dto/update-teacher.dto';
-import { UpdateTeacherStatusDto } from './dto/update-teacher-status.dto';
+import { StudentsService } from './students.service';
+import { CreateStudentDto } from './dto/create-student.dto';
+import { UpdateStudentDto } from './dto/update-student.dto';
+import { UpdateStudentStatusDto } from './dto/update-student-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @UseGuards(JwtAuthGuard)
-@Controller('teachers')
-export class TeachersController {
-  constructor(private readonly teachersService: TeachersService) {}
+@Controller('students')
+export class StudentsController {
+  constructor(private readonly studentsService: StudentsService) {}
 
   @Post()
   create(
     @CurrentUser('userId') userId: string,
-    @Body() createTeacherDto: CreateTeacherDto,
+    @Body() createStudentDto: CreateStudentDto,
     @Query('organizationId') organizationId?: string,
   ) {
-    return this.teachersService.create(userId, createTeacherDto, {
+    return this.studentsService.create(userId, createStudentDto, {
       organizationId,
     });
   }
@@ -36,7 +36,7 @@ export class TeachersController {
     @CurrentUser('userId') userId: string,
     @Query('organizationId') organizationId?: string,
   ) {
-    return this.teachersService.findAll(userId, { organizationId });
+    return this.studentsService.findAll(userId, { organizationId });
   }
 
   @Get('me')
@@ -44,15 +44,7 @@ export class TeachersController {
     @CurrentUser('userId') userId: string,
     @Query('organizationId') organizationId?: string,
   ) {
-    return this.teachersService.findMe(userId, { organizationId });
-  }
-
-  @Get('me/classes')
-  findMyClasses(
-    @CurrentUser('userId') userId: string,
-    @Query('organizationId') organizationId?: string,
-  ) {
-    return this.teachersService.findMyClasses(userId, { organizationId });
+    return this.studentsService.findMe(userId, { organizationId });
   }
 
   @Get(':id')
@@ -61,17 +53,17 @@ export class TeachersController {
     @Param('id') id: string,
     @Query('organizationId') organizationId?: string,
   ) {
-    return this.teachersService.findOne(userId, id, { organizationId });
+    return this.studentsService.findOne(userId, id, { organizationId });
   }
 
   @Patch(':id')
   update(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
-    @Body() updateTeacherDto: UpdateTeacherDto,
+    @Body() updateStudentDto: UpdateStudentDto,
     @Query('organizationId') organizationId?: string,
   ) {
-    return this.teachersService.update(userId, id, updateTeacherDto, {
+    return this.studentsService.update(userId, id, updateStudentDto, {
       organizationId,
     });
   }
@@ -80,16 +72,14 @@ export class TeachersController {
   updateStatus(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
-    @Body() updateTeacherStatusDto: UpdateTeacherStatusDto,
+    @Body() updateStudentStatusDto: UpdateStudentStatusDto,
     @Query('organizationId') organizationId?: string,
   ) {
-    return this.teachersService.updateStatus(
+    return this.studentsService.updateStatus(
       userId,
       id,
-      updateTeacherStatusDto,
-      {
-        organizationId,
-      },
+      updateStudentStatusDto,
+      { organizationId },
     );
   }
 }

@@ -3,14 +3,16 @@ import {
   IsArray,
   IsDateString,
   IsEmail,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { StudentGender } from '../entities/student.entity';
 
-export class CreateTeacherDto {
+export class CreateStudentDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(150)
@@ -28,7 +30,7 @@ export class CreateTeacherDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(50)
-  teacherCode!: string;
+  studentCode!: string;
 
   @IsArray()
   @ArrayNotEmpty()
@@ -36,21 +38,15 @@ export class CreateTeacherDto {
   branchIds!: string[];
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  specialization?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  qualification?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  bio?: string;
-
-  @IsOptional()
   @IsDateString()
-  hireDate?: string;
+  dateOfBirth?: string;
+
+  @IsOptional()
+  @IsEnum(StudentGender)
+  gender?: StudentGender;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
 }

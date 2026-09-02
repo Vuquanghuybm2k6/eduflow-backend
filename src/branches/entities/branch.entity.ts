@@ -13,6 +13,7 @@ import {
 import { Organization } from '../../organizations/entities/organization.entity';
 import { Class } from '../../classes/entities/class.entity';
 import { Teacher } from '../../teachers/entities/teacher.entity';
+import { Student } from '../../students/entities/student.entity';
 
 export enum BranchStatus {
   ACTIVE = 'active',
@@ -58,6 +59,9 @@ export class Branch {
 
   @ManyToMany(() => Teacher, (teacher) => teacher.branches)
   teachers!: Teacher[];
+
+  @ManyToMany(() => Student, (student) => student.branches)
+  students!: Student[];
 
   @CreateDateColumn({ type: 'timestamp', precision: 3 })
   createdAt!: Date;

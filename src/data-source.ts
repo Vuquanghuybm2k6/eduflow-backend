@@ -13,6 +13,8 @@ import { Branch } from './branches/entities/branch.entity';
 import { Course } from './courses/entities/course.entity';
 import { Class } from './classes/entities/class.entity';
 import { Teacher } from './teachers/entities/teacher.entity';
+import { Student } from './students/entities/student.entity';
+import { Enrollment } from './enrollments/entities/enrollment.entity';
 import { RefreshToken } from './auth/entities/refresh-token.entity';
 import { VerificationToken } from './auth/entities/verification-token.entity';
 
@@ -30,6 +32,8 @@ export const AppDataSource = new DataSource({
     Course,
     Class,
     Teacher,
+    Student,
+    Enrollment,
     RefreshToken,
     VerificationToken,
   ],

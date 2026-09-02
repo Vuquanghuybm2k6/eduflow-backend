@@ -11,6 +11,7 @@ import {
 import { Membership } from '../../memberships/entities/membership.entity';
 import { RefreshToken } from '../../auth/entities/refresh-token.entity';
 import { Teacher } from '../../teachers/entities/teacher.entity';
+import { Student } from '../../students/entities/student.entity';
 
 export enum UserStatus {
   ACTIVE = 'ACTIVE',
@@ -58,6 +59,9 @@ export class User {
 
   @OneToOne(() => Teacher, (teacher) => teacher.user)
   teacher!: Teacher | null;
+
+  @OneToOne(() => Student, (student) => student.user)
+  student!: Student | null;
 
   @CreateDateColumn({ type: 'timestamp', precision: 3 })
   createdAt!: Date;

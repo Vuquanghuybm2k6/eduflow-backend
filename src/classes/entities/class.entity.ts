@@ -5,6 +5,7 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
@@ -14,6 +15,7 @@ import { Organization } from '../../organizations/entities/organization.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 import { Course } from '../../courses/entities/course.entity';
 import { Teacher } from '../../teachers/entities/teacher.entity';
+import { Enrollment } from '../../enrollments/entities/enrollment.entity';
 
 export enum ClassStatus {
   UPCOMING = 'UPCOMING',
@@ -88,6 +90,9 @@ export class Class {
   })
   @JoinColumn({ name: 'teacherId' })
   teacher!: Teacher | null;
+
+  @OneToMany(() => Enrollment, (enrollment) => enrollment.class)
+  enrollments!: Enrollment[];
 
   @CreateDateColumn({ type: 'timestamp', precision: 3 })
   createdAt!: Date;

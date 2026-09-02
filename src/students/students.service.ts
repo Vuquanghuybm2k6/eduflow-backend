@@ -9,37 +9,34 @@ import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
-import { Teacher } from './entities/teacher.entity';
-import { CreateTeacherDto } from './dto/create-teacher.dto';
-import { UpdateTeacherDto } from './dto/update-teacher.dto';
-import { UpdateTeacherStatusDto } from './dto/update-teacher-status.dto';
+import { Student } from './entities/student.entity';
+import { CreateStudentDto } from './dto/create-student.dto';
+import { UpdateStudentDto } from './dto/update-student.dto';
+import { UpdateStudentStatusDto } from './dto/update-student-status.dto';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../roles/entities/role.entity';
 import {
   Membership,
   MembershipStatus,
 } from '../memberships/entities/membership.entity';
-import { Class } from '../classes/entities/class.entity';
 import { Branch } from '../branches/entities/branch.entity';
 
 export interface OrgContextOptions {
   organizationId?: string;
 }
 
-const TEACHER_ROLE_NAME = 'Teacher';
+const STUDENT_ROLE_NAME = 'Student';
 
 @Injectable()
-export class TeachersService {
+export class StudentsService {
   constructor(
     private readonly dataSource: DataSource,
-    @InjectRepository(Teacher)
-    private readonly teachersRepository: Repository<Teacher>,
+    @InjectRepository(Student)
+    private readonly studentsRepository: Repository<Student>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     @InjectRepository(Membership)
     private readonly membershipsRepository: Repository<Membership>,
-    @InjectRepository(Class)
-    private readonly classesRepository: Repository<Class>,
     @InjectRepository(Branch)
     private readonly branchesRepository: Repository<Branch>,
   ) {}
@@ -103,13 +100,13 @@ export class TeachersService {
     }
   }
 
-  private async findOrCreateTeacherRole(
+  private async findOrCreateStudentRole(
     manager: EntityManager,
     organizationId: string,
   ): Promise<Role> {
     const existing = await manager.findOneBy(Role, {
       organizationId,
-      name: TEACHER_ROLE_NAME,
+      name: STUDENT_ROLE_NAME,
     });
 
     if (existing) {
@@ -118,25 +115,25 @@ export class TeachersService {
 
     return manager.save(
       manager.create(Role, {
-        name: TEACHER_ROLE_NAME,
+        name: STUDENT_ROLE_NAME,
         organizationId,
         isSystem: true,
       }),
     );
   }
 
-  private async assertTeacherCodeAvailable(
+  private async assertStudentCodeAvailable(
     organizationId: string,
-    teacherCode: string,
+    studentCode: string,
     excludeId?: string,
   ): Promise<void> {
-    const existing = await this.teachersRepository.findOneBy({
+    const existing = await this.studentsRepository.findOneBy({
       organizationId,
-      teacherCode,
+      studentCode,
     });
 
     if (existing && existing.id !== excludeId) {
-      throw new ConflictException('Mã giáo viên này đã tồn tại');
+      throw new ConflictException('Mã học viên này đã tồn tại');
     }
   }
 
@@ -165,27 +162,22 @@ export class TeachersService {
     return branches;
   }
 
-  private async findTeacherOrThrow(id: string, organizationId: string) {
-    const teacher = await this.teachersRepository.findOne({
+  private async findStudentOrThrow(id: string, organizationId: string) {
+    const student = await this.studentsRepository.findOne({
       where: { id, organizationId },
       relations: { user: true, branches: true },
     });
 
-    if (!teacher) {
-      throw new NotFoundException('Giáo viên không tồn tại');
+    if (!student) {
+      throw new NotFoundException('Học viên không tồn tại');
     }
 
-    return teacher;
+    return student;
   }
 
-  /**
-   * Owner/Admin creates the Teacher: this creates the User, the TEACHER
-   * Membership and the Teacher profile inside a single transaction so that a
-   * failure on any step rolls everything back.
-   */
   async create(
     actorUserId: string,
-    createTeacherDto: CreateTeacherDto,
+    createStudentDto: CreateStudentDto,
     options: OrgContextOptions = {},
   ) {
     const organizationId = await this.resolveOrganizationId(
@@ -193,32 +185,32 @@ export class TeachersService {
       options.organizationId,
     );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
-    await this.assertTeacherCodeAvailable(
+    await this.assertStudentCodeAvailable(
       organizationId,
-      createTeacherDto.teacherCode,
+      createStudentDto.studentCode,
     );
-    await this.assertEmailAvailable(createTeacherDto.email);
+    await this.assertEmailAvailable(createStudentDto.email);
 
     const temporaryPassword = this.generateTemporaryPassword();
     const passwordHash = await bcrypt.hash(temporaryPassword, 10);
 
-    const teacher = await this.dataSource.transaction(async (manager) => {
+    const student = await this.dataSource.transaction(async (manager) => {
       const branches = await this.resolveBranches(
         manager,
         organizationId,
-        createTeacherDto.branchIds,
+        createStudentDto.branchIds,
       );
 
       const user = await manager.save(
         manager.create(User, {
-          email: createTeacherDto.email,
+          email: createStudentDto.email,
           passwordHash,
-          fullName: createTeacherDto.fullName,
-          phone: createTeacherDto.phone ?? null,
+          fullName: createStudentDto.fullName,
+          phone: createStudentDto.phone ?? null,
         }),
       );
 
-      const role = await this.findOrCreateTeacherRole(manager, organizationId);
+      const role = await this.findOrCreateStudentRole(manager, organizationId);
 
       await manager.save(
         manager.create(Membership, {
@@ -229,21 +221,20 @@ export class TeachersService {
       );
 
       return manager.save(
-        manager.create(Teacher, {
+        manager.create(Student, {
           userId: user.id,
           organizationId,
-          teacherCode: createTeacherDto.teacherCode,
-          specialization: createTeacherDto.specialization ?? null,
-          qualification: createTeacherDto.qualification ?? null,
-          bio: createTeacherDto.bio ?? null,
-          hireDate: createTeacherDto.hireDate ?? null,
+          studentCode: createStudentDto.studentCode,
+          dateOfBirth: createStudentDto.dateOfBirth ?? null,
+          gender: createStudentDto.gender ?? null,
+          address: createStudentDto.address ?? null,
           branches,
         }),
       );
     });
 
     return {
-      teacher,
+      student,
       temporaryPassword,
     };
   }
@@ -251,14 +242,14 @@ export class TeachersService {
   async findAll(
     actorUserId: string,
     options: OrgContextOptions = {},
-  ): Promise<Teacher[]> {
+  ): Promise<Student[]> {
     const organizationId = await this.resolveOrganizationId(
       actorUserId,
       options.organizationId,
     );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
-    return this.teachersRepository.find({
+    return this.studentsRepository.find({
       where: { organizationId },
       relations: { user: true, branches: true },
       order: { createdAt: 'DESC' },
@@ -276,48 +267,36 @@ export class TeachersService {
     );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
-    return this.findTeacherOrThrow(id, organizationId);
+    return this.findStudentOrThrow(id, organizationId);
   }
 
   async findMe(
     userId: string,
     options: OrgContextOptions = {},
-  ): Promise<Teacher> {
+  ): Promise<Student> {
     const organizationId = await this.resolveOrganizationId(
       userId,
       options.organizationId,
     );
 
-    const teacher = await this.teachersRepository.findOne({
+    const student = await this.studentsRepository.findOne({
       where: { userId, organizationId },
       relations: { user: true, branches: true },
     });
 
-    if (!teacher) {
+    if (!student) {
       throw new NotFoundException(
-        'Hồ sơ giáo viên không tồn tại cho tài khoản này',
+        'Hồ sơ học viên không tồn tại cho tài khoản này',
       );
     }
 
-    return teacher;
-  }
-
-  async findMyClasses(
-    userId: string,
-    options: OrgContextOptions = {},
-  ): Promise<Class[]> {
-    const teacher = await this.findMe(userId, options);
-
-    return this.classesRepository.find({
-      where: { teacherId: teacher.id },
-      order: { startDate: 'ASC' },
-    });
+    return student;
   }
 
   async update(
     actorUserId: string,
     id: string,
-    updateTeacherDto: UpdateTeacherDto,
+    updateStudentDto: UpdateStudentDto,
     options: OrgContextOptions = {},
   ) {
     const organizationId = await this.resolveOrganizationId(
@@ -326,39 +305,39 @@ export class TeachersService {
     );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
-    const teacher = await this.findTeacherOrThrow(id, organizationId);
+    const student = await this.findStudentOrThrow(id, organizationId);
 
     if (
-      updateTeacherDto.teacherCode !== undefined &&
-      updateTeacherDto.teacherCode !== teacher.teacherCode
+      updateStudentDto.studentCode !== undefined &&
+      updateStudentDto.studentCode !== student.studentCode
     ) {
-      await this.assertTeacherCodeAvailable(
+      await this.assertStudentCodeAvailable(
         organizationId,
-        updateTeacherDto.teacherCode,
+        updateStudentDto.studentCode,
         id,
       );
     }
 
-    if (updateTeacherDto.branchIds) {
+    if (updateStudentDto.branchIds) {
       const branches = await this.dataSource.transaction((manager) =>
         this.resolveBranches(
           manager,
           organizationId,
-          updateTeacherDto.branchIds!,
+          updateStudentDto.branchIds!,
         ),
       );
-      teacher.branches = branches;
+      student.branches = branches;
     }
 
-    const { branchIds: _branchIds, ...fields } = updateTeacherDto;
-    Object.assign(teacher, fields);
-    return this.teachersRepository.save(teacher);
+    const { branchIds: _branchIds, ...fields } = updateStudentDto;
+    Object.assign(student, fields);
+    return this.studentsRepository.save(student);
   }
 
   async updateStatus(
     actorUserId: string,
     id: string,
-    updateTeacherStatusDto: UpdateTeacherStatusDto,
+    updateStudentStatusDto: UpdateStudentStatusDto,
     options: OrgContextOptions = {},
   ) {
     const organizationId = await this.resolveOrganizationId(
@@ -367,10 +346,10 @@ export class TeachersService {
     );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
-    const teacher = await this.findTeacherOrThrow(id, organizationId);
-    teacher.status = updateTeacherStatusDto.status;
+    const student = await this.findStudentOrThrow(id, organizationId);
+    student.status = updateStudentStatusDto.status;
 
-    return this.teachersRepository.save(teacher);
+    return this.studentsRepository.save(student);
   }
 
   private generateTemporaryPassword(): string {

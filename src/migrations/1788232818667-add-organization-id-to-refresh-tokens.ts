@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddOrganizationIdToRefreshTokens1788232818667
-  implements MigrationInterface
-{
+export class AddOrganizationIdToRefreshTokens1788232818667 implements MigrationInterface {
   name = 'AddOrganizationIdToRefreshTokens1788232818667';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -15,9 +13,7 @@ export class AddOrganizationIdToRefreshTokens1788232818667
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(
-      `DROP INDEX "IDX_refresh_tokens_organizationId"`,
-    );
+    await queryRunner.query(`DROP INDEX "IDX_refresh_tokens_organizationId"`);
     await queryRunner.query(
       `ALTER TABLE "refresh_tokens" DROP COLUMN "organizationId"`,
     );

@@ -11,13 +11,7 @@ import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Class,
-      Membership,
-      Branch,
-      Course,
-      Teacher,
-    ]),
+    TypeOrmModule.forFeature([Class, Membership, Branch, Course, Teacher]),
     AuthModule,
   ],
   controllers: [ClassesController],

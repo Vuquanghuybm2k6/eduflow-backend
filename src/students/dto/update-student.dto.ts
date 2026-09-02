@@ -1,17 +1,19 @@
 import {
   IsArray,
   IsDateString,
+  IsEnum,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { StudentGender } from '../entities/student.entity';
 
-export class UpdateTeacherDto {
+export class UpdateStudentDto {
   @IsOptional()
   @IsString()
   @MaxLength(50)
-  teacherCode?: string;
+  studentCode?: string;
 
   @IsOptional()
   @IsArray()
@@ -19,21 +21,15 @@ export class UpdateTeacherDto {
   branchIds?: string[];
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  specialization?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  qualification?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  bio?: string;
-
-  @IsOptional()
   @IsDateString()
-  hireDate?: string;
+  dateOfBirth?: string;
+
+  @IsOptional()
+  @IsEnum(StudentGender)
+  gender?: StudentGender;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
 }

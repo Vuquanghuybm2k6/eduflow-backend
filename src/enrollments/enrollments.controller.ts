@@ -9,24 +9,24 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ClassesService } from './classes.service';
-import { CreateClassDto } from './dto/create-class.dto';
-import { UpdateClassDto } from './dto/update-class.dto';
+import { EnrollmentsService } from './enrollments.service';
+import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
+import { UpdateEnrollmentStatusDto } from './dto/update-enrollment-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @UseGuards(JwtAuthGuard)
-@Controller('classes')
-export class ClassesController {
-  constructor(private readonly classesService: ClassesService) {}
+@Controller('enrollments')
+export class EnrollmentsController {
+  constructor(private readonly enrollmentsService: EnrollmentsService) {}
 
   @Post()
   create(
     @CurrentUser('userId') userId: string,
-    @Body() createClassDto: CreateClassDto,
+    @Body() createEnrollmentDto: CreateEnrollmentDto,
     @Query('organizationId') organizationId?: string,
   ) {
-    return this.classesService.create(userId, createClassDto, {
+    return this.enrollmentsService.create(userId, createEnrollmentDto, {
       organizationId,
     });
   }
@@ -36,7 +36,7 @@ export class ClassesController {
     @CurrentUser('userId') userId: string,
     @Query('organizationId') organizationId?: string,
   ) {
-    return this.classesService.findAll(userId, { organizationId });
+    return this.enrollmentsService.findAll(userId, { organizationId });
   }
 
   @Get(':id')
@@ -45,19 +45,22 @@ export class ClassesController {
     @Param('id') id: string,
     @Query('organizationId') organizationId?: string,
   ) {
-    return this.classesService.findOne(userId, id, { organizationId });
+    return this.enrollmentsService.findOne(userId, id, { organizationId });
   }
 
-  @Patch(':id')
-  update(
+  @Patch(':id/status')
+  updateStatus(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
-    @Body() updateClassDto: UpdateClassDto,
+    @Body() updateEnrollmentStatusDto: UpdateEnrollmentStatusDto,
     @Query('organizationId') organizationId?: string,
   ) {
-    return this.classesService.update(userId, id, updateClassDto, {
-      organizationId,
-    });
+    return this.enrollmentsService.updateStatus(
+      userId,
+      id,
+      updateEnrollmentStatusDto,
+      { organizationId },
+    );
   }
 
   @Delete(':id')
@@ -66,6 +69,6 @@ export class ClassesController {
     @Param('id') id: string,
     @Query('organizationId') organizationId?: string,
   ) {
-    return this.classesService.remove(userId, id, { organizationId });
+    return this.enrollmentsService.remove(userId, id, { organizationId });
   }
 }

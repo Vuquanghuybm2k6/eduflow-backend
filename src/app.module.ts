@@ -14,6 +14,8 @@ import { BranchesModule } from './branches/branches.module';
 import { CoursesModule } from './courses/courses.module';
 import { ClassesModule } from './classes/classes.module';
 import { TeachersModule } from './teachers/teachers.module';
+import { StudentsModule } from './students/students.module';
+import { EnrollmentsModule } from './enrollments/enrollments.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -34,10 +36,12 @@ import { TeachersModule } from './teachers/teachers.module';
     RolesModule,
     MembershipsModule,
     PermissionsModule,
-BranchesModule,
+    BranchesModule,
     CoursesModule,
     ClassesModule,
     TeachersModule,
+    StudentsModule,
+    EnrollmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

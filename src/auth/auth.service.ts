@@ -19,7 +19,10 @@ import { MailService } from '../mail/mail.service';
 import { User, UserStatus } from '../users/entities/user.entity';
 import { Organization } from '../organizations/entities/organization.entity';
 import { Role } from '../roles/entities/role.entity';
-import { Membership, MembershipStatus } from '../memberships/entities/membership.entity';
+import {
+  Membership,
+  MembershipStatus,
+} from '../memberships/entities/membership.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import {
   VerificationToken,
@@ -500,11 +503,7 @@ export class AuthService {
         user.email,
         organizationId,
       );
-      await this.saveRefreshToken(
-        user.id,
-        tokens.refreshToken,
-        organizationId,
-      );
+      await this.saveRefreshToken(user.id, tokens.refreshToken, organizationId);
 
       return {
         requiresMembershipSelection: false,
