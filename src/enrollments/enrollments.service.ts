@@ -120,7 +120,7 @@ export class EnrollmentsService {
       organizationId,
       createEnrollmentDto.studentId,
     );
-    await this.assertClassInOrganization(
+    const classEntity = await this.assertClassInOrganization(
       organizationId,
       createEnrollmentDto.classId,
     );
@@ -132,6 +132,15 @@ export class EnrollmentsService {
 
     if (existing) {
       throw new ConflictException('Học sinh đã ghi danh vào lớp này');
+    }
+
+    const activeCount = await this.enrollmentsRepository.countBy({
+      classId: createEnrollmentDto.classId,
+      status: EnrollmentStatus.ACTIVE,
+    });
+
+    if (activeCount >= classEntity.capacity) {
+      throw new BadRequestException('Lớp đã hết chỗ');
     }
 
     const enrollment = this.enrollmentsRepository.create({
@@ -158,6 +167,7 @@ export class EnrollmentsService {
     return this.enrollmentsRepository
       .createQueryBuilder('enrollment')
       .leftJoinAndSelect('enrollment.student', 'student')
+      .leftJoinAndSelect('student.user', 'studentUser')
       .leftJoinAndSelect('enrollment.class', 'class')
       .where('student.organizationId = :organizationId', { organizationId })
       .orderBy('enrollment.createdAt', 'DESC')
@@ -173,6 +183,7 @@ export class EnrollmentsService {
     const enrollment = await this.enrollmentsRepository
       .createQueryBuilder('enrollment')
       .leftJoinAndSelect('enrollment.student', 'student')
+      .leftJoinAndSelect('student.user', 'studentUser')
       .leftJoinAndSelect('enrollment.class', 'class')
       .where('enrollment.id = :id', { id })
       .andWhere('student.organizationId = :organizationId', {
@@ -185,6 +196,52 @@ export class EnrollmentsService {
     }
 
     return enrollment;
+  }
+
+  async findByStudent(
+    userId: string,
+    studentId: string,
+    options: OrgContextOptions = {},
+  ) {
+    const organizationId = await this.resolveOrganizationId(
+      userId,
+      options.organizationId,
+    );
+
+    return this.enrollmentsRepository
+      .createQueryBuilder('enrollment')
+      .leftJoinAndSelect('enrollment.student', 'student')
+      .leftJoinAndSelect('student.user', 'studentUser')
+      .leftJoinAndSelect('enrollment.class', 'class')
+      .where('enrollment.studentId = :studentId', { studentId })
+      .andWhere('student.organizationId = :organizationId', {
+        organizationId,
+      })
+      .orderBy('enrollment.createdAt', 'DESC')
+      .getMany();
+  }
+
+  async findByClass(
+    userId: string,
+    classId: string,
+    options: OrgContextOptions = {},
+  ) {
+    const organizationId = await this.resolveOrganizationId(
+      userId,
+      options.organizationId,
+    );
+
+    return this.enrollmentsRepository
+      .createQueryBuilder('enrollment')
+      .leftJoinAndSelect('enrollment.student', 'student')
+      .leftJoinAndSelect('student.user', 'studentUser')
+      .leftJoinAndSelect('enrollment.class', 'class')
+      .where('enrollment.classId = :classId', { classId })
+      .andWhere('student.organizationId = :organizationId', {
+        organizationId,
+      })
+      .orderBy('enrollment.createdAt', 'DESC')
+      .getMany();
   }
 
   async updateStatus(

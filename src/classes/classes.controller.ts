@@ -68,4 +68,13 @@ export class ClassesController {
   ) {
     return this.classesService.remove(userId, id, { organizationId });
   }
+
+  @Post(':id/duplicate')
+  duplicate(
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Query('organizationId') organizationId?: string,
+  ) {
+    return this.classesService.duplicate(userId, id, { organizationId });
+  }
 }

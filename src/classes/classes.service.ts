@@ -311,4 +311,43 @@ export class ClassesService {
 
     return this.classesRepository.save(classEntity);
   }
+
+  async duplicate(
+    userId: string,
+    id: string,
+    options: OrgContextOptions = {},
+  ) {
+    const organizationId = await this.resolveOrganizationId(
+      userId,
+      options.organizationId,
+    );
+
+    const original = await this.classesRepository.findOneBy({
+      id,
+      organizationId,
+    });
+
+    if (!original) {
+      throw new NotFoundException('Lớp học không tồn tại');
+    }
+
+    const newCode = `${original.code}-COPY`;
+    await this.assertCodeAvailable(organizationId, newCode);
+
+    const duplicate = this.classesRepository.create({
+      branchId: original.branchId,
+      courseId: original.courseId,
+      name: `${original.name} (Copy)`,
+      code: newCode,
+      teacherId: original.teacherId,
+      startDate: original.startDate,
+      endDate: original.endDate,
+      capacity: original.capacity,
+      status: ClassStatus.UPCOMING,
+      organizationId,
+    });
+
+    const saved = await this.classesRepository.save(duplicate);
+    return this.applyComputedStatus(saved);
+  }
 }

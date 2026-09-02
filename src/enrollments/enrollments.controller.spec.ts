@@ -9,6 +9,8 @@ describe('EnrollmentsController', () => {
     create: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
+    findByStudent: jest.fn(),
+    findByClass: jest.fn(),
     updateStatus: jest.fn(),
     remove: jest.fn(),
   };

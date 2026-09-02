@@ -39,6 +39,28 @@ export class EnrollmentsController {
     return this.enrollmentsService.findAll(userId, { organizationId });
   }
 
+  @Get('student/:studentId')
+  findByStudent(
+    @CurrentUser('userId') userId: string,
+    @Param('studentId') studentId: string,
+    @Query('organizationId') organizationId?: string,
+  ) {
+    return this.enrollmentsService.findByStudent(userId, studentId, {
+      organizationId,
+    });
+  }
+
+  @Get('class/:classId')
+  findByClass(
+    @CurrentUser('userId') userId: string,
+    @Param('classId') classId: string,
+    @Query('organizationId') organizationId?: string,
+  ) {
+    return this.enrollmentsService.findByClass(userId, classId, {
+      organizationId,
+    });
+  }
+
   @Get(':id')
   findOne(
     @CurrentUser('userId') userId: string,
