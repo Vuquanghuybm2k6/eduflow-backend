@@ -1,26 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { StudentsController } from './students.controller';
-import { StudentsService } from './students.service';
-import { Student } from './entities/student.entity';
-import { User } from '../users/entities/user.entity';
+import { SchedulesController } from './schedules.controller';
+import { SchedulesService } from './schedules.service';
+import { Schedule } from './entities/schedule.entity';
+import { Class } from '../classes/entities/class.entity';
 import { Membership } from '../memberships/entities/membership.entity';
-import { Branch } from '../branches/entities/branch.entity';
 
-describe('StudentsController', () => {
-  let controller: StudentsController;
+describe('SchedulesController', () => {
+  let controller: SchedulesController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [StudentsController],
+      controllers: [SchedulesController],
       providers: [
-        StudentsService,
+        SchedulesService,
         {
-          provide: getRepositoryToken(Student),
+          provide: getRepositoryToken(Schedule),
           useValue: {
             find: jest.fn(),
-            findOne: jest.fn(),
             findOneBy: jest.fn(),
             create: jest.fn(),
             save: jest.fn(),
@@ -29,16 +27,17 @@ describe('StudentsController', () => {
           },
         },
         {
-          provide: getRepositoryToken(User),
-          useValue: { findOneBy: jest.fn(), save: jest.fn() },
+          provide: getRepositoryToken(Class),
+          useValue: {
+            find: jest.fn(),
+            findOneBy: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(Membership),
-          useValue: { findOne: jest.fn(), createQueryBuilder: jest.fn() },
-        },
-        {
-          provide: getRepositoryToken(Branch),
-          useValue: { findOneBy: jest.fn() },
+          useValue: {
+            createQueryBuilder: jest.fn(),
+          },
         },
         {
           provide: DataSource,
@@ -47,7 +46,7 @@ describe('StudentsController', () => {
       ],
     }).compile();
 
-    controller = module.get<StudentsController>(StudentsController);
+    controller = module.get<SchedulesController>(SchedulesController);
   });
 
   it('should be defined', () => {

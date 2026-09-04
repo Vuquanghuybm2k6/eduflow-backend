@@ -15,6 +15,7 @@ import { Class } from './classes/entities/class.entity';
 import { Teacher } from './teachers/entities/teacher.entity';
 import { Student } from './students/entities/student.entity';
 import { Enrollment } from './enrollments/entities/enrollment.entity';
+import { Schedule } from './schedules/entities/schedule.entity';
 import { RefreshToken } from './auth/entities/refresh-token.entity';
 import { VerificationToken } from './auth/entities/verification-token.entity';
 
@@ -34,6 +35,7 @@ export const AppDataSource = new DataSource({
     Teacher,
     Student,
     Enrollment,
+    Schedule,
     RefreshToken,
     VerificationToken,
   ],

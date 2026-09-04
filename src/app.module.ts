@@ -16,6 +16,7 @@ import { ClassesModule } from './classes/classes.module';
 import { TeachersModule } from './teachers/teachers.module';
 import { StudentsModule } from './students/students.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
+import { SchedulesModule } from './schedules/schedules.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -42,6 +43,7 @@ import { EnrollmentsModule } from './enrollments/enrollments.module';
     TeachersModule,
     StudentsModule,
     EnrollmentsModule,
+    SchedulesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
