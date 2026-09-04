@@ -7,11 +7,21 @@ import { Membership } from '../memberships/entities/membership.entity';
 import { Branch } from '../branches/entities/branch.entity';
 import { Course } from '../courses/entities/course.entity';
 import { Teacher } from '../teachers/entities/teacher.entity';
+import { Enrollment } from '../enrollments/entities/enrollment.entity';
+import { Schedule } from '../schedules/entities/schedule.entity';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Class, Membership, Branch, Course, Teacher]),
+    TypeOrmModule.forFeature([
+      Class,
+      Membership,
+      Branch,
+      Course,
+      Teacher,
+      Enrollment,
+      Schedule,
+    ]),
     AuthModule,
   ],
   controllers: [ClassesController],

@@ -103,6 +103,10 @@ export class EnrollmentsService {
       throw new BadRequestException('Không thể ghi danh vào lớp đã hủy');
     }
 
+    if (new Date(classEntity.endDate) < new Date()) {
+      throw new BadRequestException('Không thể ghi danh vào lớp đã kết thúc');
+    }
+
     return classEntity;
   }
 

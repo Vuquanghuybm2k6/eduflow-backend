@@ -7,6 +7,8 @@ import { Membership } from '../memberships/entities/membership.entity';
 import { Branch } from '../branches/entities/branch.entity';
 import { Course } from '../courses/entities/course.entity';
 import { Teacher } from '../teachers/entities/teacher.entity';
+import { Enrollment } from '../enrollments/entities/enrollment.entity';
+import { Schedule } from '../schedules/entities/schedule.entity';
 
 describe('ClassesController', () => {
   let controller: ClassesController;
@@ -43,6 +45,23 @@ describe('ClassesController', () => {
         {
           provide: getRepositoryToken(Teacher),
           useValue: { find: jest.fn(), findOneBy: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Enrollment),
+          useValue: {
+            find: jest.fn(),
+            findOneBy: jest.fn(),
+            countBy: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Schedule),
+          useValue: {
+            find: jest.fn(),
+            findOneBy: jest.fn(),
+            countBy: jest.fn(),
+            createQueryBuilder: jest.fn(),
+          },
         },
       ],
     }).compile();

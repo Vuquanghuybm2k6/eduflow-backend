@@ -14,12 +14,24 @@ import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { Branch, BranchStatus } from '../branches/entities/branch.entity';
 import { Course } from '../courses/entities/course.entity';
 import { Teacher, TeacherStatus } from '../teachers/entities/teacher.entity';
+import { Enrollment, EnrollmentStatus } from '../enrollments/entities/enrollment.entity';
+import { DayOfWeek, Schedule } from '../schedules/entities/schedule.entity';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 
 export interface OrgContextOptions {
   organizationId?: string;
 }
+
+const DAY_LABELS: Record<DayOfWeek, string> = {
+  MONDAY: 'Thứ hai',
+  TUESDAY: 'Thứ ba',
+  WEDNESDAY: 'Thứ tư',
+  THURSDAY: 'Thứ năm',
+  FRIDAY: 'Thứ sáu',
+  SATURDAY: 'Thứ bảy',
+  SUNDAY: 'Chủ nhật',
+};
 
 @Injectable()
 export class ClassesService {
@@ -34,6 +46,10 @@ export class ClassesService {
     private readonly coursesRepository: Repository<Course>,
     @InjectRepository(Teacher)
     private readonly teachersRepository: Repository<Teacher>,
+    @InjectRepository(Enrollment)
+    private readonly enrollmentsRepository: Repository<Enrollment>,
+    @InjectRepository(Schedule)
+    private readonly schedulesRepository: Repository<Schedule>,
   ) {}
 
   private async resolveOrganizationId(
@@ -177,6 +193,83 @@ export class ClassesService {
     }
   }
 
+  private isOverlapping(
+    newStart: string,
+    newEnd: string,
+    existingStart: string,
+    existingEnd: string,
+  ): boolean {
+    return newStart < existingEnd && newEnd > existingStart;
+  }
+
+  private async assertCapacityNotBelowEnrollments(
+    classId: string,
+    newCapacity: number,
+  ): Promise<void> {
+    const activeCount = await this.enrollmentsRepository.countBy({
+      classId,
+      status: EnrollmentStatus.ACTIVE,
+    });
+
+    if (activeCount > newCapacity) {
+      throw new BadRequestException(
+        `Không thể giảm sức chứa xuống dưới ${activeCount} học viên đang theo học`,
+      );
+    }
+  }
+
+  /**
+   * When a class teacher is changed, every schedule of THIS class must not
+   * overlap the new teacher's schedules in other (non-cancelled) classes.
+   */
+  private async assertTeacherScheduleCompatible(
+    organizationId: string,
+    classId: string,
+    teacherId: string | null | undefined,
+  ): Promise<void> {
+    if (!teacherId) {
+      return;
+    }
+
+    const classSchedules = await this.schedulesRepository.find({
+      where: { classId },
+    });
+
+    if (classSchedules.length === 0) {
+      return;
+    }
+
+    const teacherSchedules = await this.schedulesRepository
+      .createQueryBuilder('schedule')
+      .innerJoinAndSelect('schedule.class', 'class')
+      .where('class.organizationId = :organizationId', { organizationId })
+      .andWhere('class.teacherId = :teacherId', { teacherId })
+      .andWhere('class.id != :classId', { classId })
+      .andWhere('class.status != :cancelledStatus', {
+        cancelledStatus: ClassStatus.CANCELLED,
+      })
+      .getMany();
+
+    for (const thisSched of classSchedules) {
+      for (const sched of teacherSchedules) {
+        if (
+          sched.dayOfWeek === thisSched.dayOfWeek &&
+          this.isOverlapping(
+            thisSched.startTime,
+            thisSched.endTime,
+            sched.startTime,
+            sched.endTime,
+          )
+        ) {
+          const className = sched.class?.name ?? 'lớp khác';
+          throw new ConflictException(
+            `Giáo viên này đã có lịch dạy lớp "${className}" vào ${DAY_LABELS[thisSched.dayOfWeek]} ${sched.startTime} - ${sched.endTime}, trùng với lịch của lớp này`,
+          );
+        }
+      }
+    }
+  }
+
   async create(
     userId: string,
     createClassDto: CreateClassDto,
@@ -285,6 +378,25 @@ export class ClassesService {
       teacherId,
     );
 
+    if (
+      updateClassDto.capacity !== undefined &&
+      updateClassDto.capacity < classEntity.capacity
+    ) {
+      await this.assertCapacityNotBelowEnrollments(
+        id,
+        updateClassDto.capacity,
+      );
+    }
+
+    const effectiveTeacherId = teacherId ?? null;
+    if (effectiveTeacherId !== (classEntity.teacherId ?? null)) {
+      await this.assertTeacherScheduleCompatible(
+        organizationId,
+        id,
+        effectiveTeacherId,
+      );
+    }
+
     Object.assign(classEntity, updateClassDto);
 
     const saved = await this.classesRepository.save(classEntity);
@@ -308,6 +420,25 @@ export class ClassesService {
 
     if (!classEntity) {
       throw new NotFoundException('Lớp học không tồn tại');
+    }
+
+    const activeEnrollments = await this.enrollmentsRepository.countBy({
+      classId: id,
+      status: EnrollmentStatus.ACTIVE,
+    });
+
+    if (activeEnrollments > 0) {
+      throw new ConflictException(
+        'Không thể hủy lớp khi vẫn còn học viên đang theo học. Vui lòng ghi nhận kết thúc hoặc hủy ghi danh trước',
+      );
+    }
+
+    const scheduleCount = await this.schedulesRepository.countBy({ classId: id });
+
+    if (scheduleCount > 0) {
+      throw new ConflictException(
+        'Không thể hủy lớp khi vẫn còn lịch học. Vui lòng xóa lịch học trước',
+      );
     }
 
     classEntity.status = ClassStatus.CANCELLED;
