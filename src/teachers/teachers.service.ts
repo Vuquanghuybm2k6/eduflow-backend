@@ -5,11 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Not, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
-import { Teacher } from './entities/teacher.entity';
+import { Teacher, TeacherStatus } from './entities/teacher.entity';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { UpdateTeacherStatusDto } from './dto/update-teacher-status.dto';
@@ -19,7 +19,7 @@ import {
   Membership,
   MembershipStatus,
 } from '../memberships/entities/membership.entity';
-import { Class } from '../classes/entities/class.entity';
+import { Class, ClassStatus } from '../classes/entities/class.entity';
 import { Branch } from '../branches/entities/branch.entity';
 
 export interface OrgContextOptions {
@@ -368,6 +368,30 @@ export class TeachersService {
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
     const teacher = await this.findTeacherOrThrow(id, organizationId);
+
+    if (updateTeacherStatusDto.status === TeacherStatus.INACTIVE) {
+      const activeClasses = await this.classesRepository.find({
+        where: {
+          teacherId: id,
+          status: Not(ClassStatus.CANCELLED),
+        },
+      });
+
+      const nonExpiredClasses = activeClasses.filter(
+        (c) => new Date(c.endDate) >= new Date(),
+      );
+
+      if (nonExpiredClasses.length > 0) {
+        const detail =
+          nonExpiredClasses.length === 1
+            ? `đang được phân công dạy lớp ${nonExpiredClasses[0].name}`
+            : `đang được phân công dạy ${nonExpiredClasses.length} lớp`;
+        throw new ConflictException(
+          `Giáo viên ${teacher.user.fullName} ${detail}, không thể đổi trạng thái`,
+        );
+      }
+    }
+
     teacher.status = updateTeacherStatusDto.status;
 
     return this.teachersRepository.save(teacher);
