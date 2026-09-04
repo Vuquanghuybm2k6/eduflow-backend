@@ -11,7 +11,7 @@ import { Repository } from 'typeorm';
 import { Class, ClassStatus } from './entities/class.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipStatus } from '../memberships/entities/membership.entity';
-import { Branch } from '../branches/entities/branch.entity';
+import { Branch, BranchStatus } from '../branches/entities/branch.entity';
 import { Course } from '../courses/entities/course.entity';
 import { Teacher, TeacherStatus } from '../teachers/entities/teacher.entity';
 import { CreateClassDto } from './dto/create-class.dto';
@@ -141,10 +141,13 @@ export class ClassesService {
   ): Promise<void> {
     const branch = await this.branchesRepository.findOne({
       where: { id: branchId },
-      select: ['organizationId'],
+      select: ['organizationId', 'status'],
     });
     if (!branch || branch.organizationId !== organizationId) {
       throw new ForbiddenException('Chi nhánh không thuộc tổ chức hiện tại');
+    }
+    if (branch.status !== BranchStatus.ACTIVE) {
+      throw new ConflictException('Chi nhánh hiện đang ngừng hoạt động');
     }
 
     const course = await this.coursesRepository.findOne({

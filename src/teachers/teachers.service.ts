@@ -20,7 +20,7 @@ import {
   MembershipStatus,
 } from '../memberships/entities/membership.entity';
 import { Class, ClassStatus } from '../classes/entities/class.entity';
-import { Branch } from '../branches/entities/branch.entity';
+import { Branch, BranchStatus } from '../branches/entities/branch.entity';
 
 export interface OrgContextOptions {
   organizationId?: string;
@@ -160,6 +160,12 @@ export class TeachersService {
 
     if (branches.length !== uniqueIds.length) {
       throw new NotFoundException('Một hoặc nhiều chi nhánh không tồn tại');
+    }
+
+    if (branches.some((b) => b.status !== BranchStatus.ACTIVE)) {
+      throw new ConflictException(
+        'Một hoặc nhiều chi nhánh hiện đang ngừng hoạt động',
+      );
     }
 
     return branches;

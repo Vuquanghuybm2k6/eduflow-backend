@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -6,11 +7,12 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { Branch } from './entities/branch.entity';
+import { Branch, BranchStatus } from './entities/branch.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
+import { Class, ClassStatus } from '../classes/entities/class.entity';
 
 export interface OrgContextOptions {
   organizationId?: string;
@@ -23,6 +25,8 @@ export class BranchesService {
     private readonly branchesRepository: Repository<Branch>,
     @InjectRepository(Membership)
     private readonly membershipsRepository: Repository<Membership>,
+    @InjectRepository(Class)
+    private readonly classesRepository: Repository<Class>,
   ) {}
 
   private async resolveOrganizationId(
@@ -58,6 +62,21 @@ export class BranchesService {
     return membership.organizationId;
   }
 
+  private async assertBranchCodeAvailable(
+    organizationId: string,
+    code: string,
+    excludeId?: string,
+  ): Promise<void> {
+    const existing = await this.branchesRepository.findOneBy({
+      organizationId,
+      code,
+    });
+
+    if (existing && existing.id !== excludeId) {
+      throw new ConflictException('Mã chi nhánh này đã tồn tại');
+    }
+  }
+
   async create(
     userId: string,
     createBranchDto: CreateBranchDto,
@@ -67,6 +86,8 @@ export class BranchesService {
       userId,
       options.organizationId,
     );
+
+    await this.assertBranchCodeAvailable(organizationId, createBranchDto.code);
 
     const branch = this.branchesRepository.create({
       ...createBranchDto,
@@ -100,7 +121,7 @@ export class BranchesService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException('Chi nhánh không tồn tại');
     }
 
     return branch;
@@ -123,7 +144,14 @@ export class BranchesService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException('Chi nhánh không tồn tại');
+    }
+
+    if (
+      updateBranchDto.code !== undefined &&
+      updateBranchDto.code !== branch.code
+    ) {
+      await this.assertBranchCodeAvailable(organizationId, updateBranchDto.code, id);
     }
 
     Object.assign(branch, updateBranchDto);
@@ -143,11 +171,27 @@ export class BranchesService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException('Chi nhánh không tồn tại');
     }
 
-    await this.branchesRepository.remove(branch);
+    const activeClassCount = await this.classesRepository
+      .createQueryBuilder('class')
+      .where('class.branchId = :branchId', { branchId: id })
+      .andWhere('class.status != :cancelled', {
+        cancelled: ClassStatus.CANCELLED,
+      })
+      .andWhere('class.endDate >= CURRENT_DATE')
+      .getCount();
 
-    return { id };
+    if (activeClassCount > 0) {
+      throw new ConflictException(
+        'Chi nhánh đang có lớp học sắp diễn ra hoặc đang hoạt động, không thể vô hiệu hóa',
+      );
+    }
+
+    branch.status = BranchStatus.INACTIVE;
+    await this.branchesRepository.save(branch);
+
+    return { id, status: BranchStatus.INACTIVE };
   }
 }

@@ -15,7 +15,7 @@ import {
   MembershipStatus,
 } from '../memberships/entities/membership.entity';
 import { Class } from '../classes/entities/class.entity';
-import { Branch } from '../branches/entities/branch.entity';
+import { Branch, BranchStatus } from '../branches/entities/branch.entity';
 
 function mockQueryBuilder(getOneResult?: unknown) {
   const qb: Record<string, jest.Mock> = {
@@ -125,7 +125,9 @@ describe('TeachersService', () => {
       usersRepo.findOneBy.mockResolvedValue(null);
       const manager = managerMock();
       manager.findOneBy.mockResolvedValue(null);
-      manager.findBy.mockResolvedValue([{ id: 'b-1', name: 'Hà Nội' }]);
+      manager.findBy.mockResolvedValue([
+        { id: 'b-1', name: 'Hà Nội', status: BranchStatus.ACTIVE },
+      ]);
       dataSource.transaction.mockImplementation(
         async (cb: (m: never) => Promise<unknown>) => cb(manager),
       );
@@ -391,6 +393,7 @@ describe('TeachersService', () => {
         status: TeacherStatus.ACTIVE,
       };
       teachersRepo.findOne.mockResolvedValue(teacher);
+      classesRepo.find.mockResolvedValue([]);
 
       const result = await service.updateStatus('actor-1', 't-1', {
         status: TeacherStatus.INACTIVE,
@@ -398,6 +401,64 @@ describe('TeachersService', () => {
 
       expect(teacher.status).toBe(TeacherStatus.INACTIVE);
       expect(teachersRepo.save).toHaveBeenCalled();
+      expect(result).toBe(teacher);
+    });
+
+    it('throws ConflictException when INACTIVATING a teacher assigned to active classes', async () => {
+      membershipsRepo.createQueryBuilder.mockReturnValue(
+        mockQueryBuilder({ organizationId: 'org-1' }),
+      );
+      membershipsRepo.findOne.mockResolvedValue(adminMembership);
+      const teacher = {
+        id: 't-1',
+        organizationId: 'org-1',
+        status: TeacherStatus.ACTIVE,
+        user: { fullName: 'Nguyen Van A' },
+      };
+      teachersRepo.findOne.mockResolvedValue(teacher);
+      classesRepo.find.mockResolvedValue([
+        {
+          id: 'c-1',
+          name: 'Lớp Toán 10A',
+          endDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+          status: 'UPCOMING',
+        },
+      ]);
+
+      await expect(
+        service.updateStatus('actor-1', 't-1', {
+          status: TeacherStatus.INACTIVE,
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(teachersRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('allows INACTIVATING a teacher whose classes have all ended', async () => {
+      membershipsRepo.createQueryBuilder.mockReturnValue(
+        mockQueryBuilder({ organizationId: 'org-1' }),
+      );
+      membershipsRepo.findOne.mockResolvedValue(adminMembership);
+      const teacher = {
+        id: 't-1',
+        organizationId: 'org-1',
+        status: TeacherStatus.ACTIVE,
+        user: { fullName: 'Nguyen Van A' },
+      };
+      teachersRepo.findOne.mockResolvedValue(teacher);
+      classesRepo.find.mockResolvedValue([
+        {
+          id: 'c-1',
+          name: 'Lớp Toán cũ',
+          endDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30),
+          status: 'UPCOMING',
+        },
+      ]);
+
+      const result = await service.updateStatus('actor-1', 't-1', {
+        status: TeacherStatus.INACTIVE,
+      });
+
+      expect(teacher.status).toBe(TeacherStatus.INACTIVE);
       expect(result).toBe(teacher);
     });
   });
