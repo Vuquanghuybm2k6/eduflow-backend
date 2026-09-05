@@ -20,6 +20,19 @@ import {
   ClassStatus,
 } from '../classes/entities/class.entity';
 
+const ALLOWED_ENROLLMENT_TRANSITIONS: Record<
+  EnrollmentStatus,
+  EnrollmentStatus[]
+> = {
+  [EnrollmentStatus.ACTIVE]: [
+    EnrollmentStatus.ACTIVE,
+    EnrollmentStatus.COMPLETED,
+    EnrollmentStatus.CANCELLED,
+  ],
+  [EnrollmentStatus.COMPLETED]: [],
+  [EnrollmentStatus.CANCELLED]: [],
+};
+
 export interface OrgContextOptions {
   organizationId?: string;
 }
@@ -264,6 +277,15 @@ export class EnrollmentsService {
   ) {
     const enrollment = await this.findOne(userId, id, options);
 
+    const allowedTransitions =
+      ALLOWED_ENROLLMENT_TRANSITIONS[enrollment.status] ?? [];
+
+    if (!allowedTransitions.includes(updateEnrollmentStatusDto.status)) {
+      throw new BadRequestException(
+        `Không thể chuyển trạng thái ghi danh từ ${enrollment.status} sang ${updateEnrollmentStatusDto.status}`,
+      );
+    }
+
     enrollment.status = updateEnrollmentStatusDto.status;
 
     const saved = await this.enrollmentsRepository.save(enrollment);
@@ -274,9 +296,28 @@ export class EnrollmentsService {
     });
   }
 
+  /**
+   * No physical delete: an enrollment keeps its history. "Deleting" cancels
+   * the enrollment (status = CANCELLED). A COMPLETED enrollment cannot be
+   * cancelled because that would rewrite history.
+   */
   async remove(userId: string, id: string, options: OrgContextOptions = {}) {
     const enrollment = await this.findOne(userId, id, options);
-    await this.enrollmentsRepository.remove(enrollment);
-    return { status: 'deleted' };
+
+    if (enrollment.status === EnrollmentStatus.COMPLETED) {
+      throw new ConflictException(
+        'Không thể hủy ghi danh đã hoàn thành. Vui lòng giữ nguyên để bảo toàn lịch sử',
+      );
+    }
+
+    if (enrollment.status !== EnrollmentStatus.CANCELLED) {
+      enrollment.status = EnrollmentStatus.CANCELLED;
+      await this.enrollmentsRepository.save(enrollment);
+    }
+
+    return this.enrollmentsRepository.findOne({
+      where: { id: enrollment.id },
+      relations: ['student', 'class'],
+    });
   }
 }
