@@ -14,6 +14,8 @@ import {
   ClassLifecycleStatus,
   ClassStatus,
 } from '../classes/entities/class.entity';
+import { Branch, BranchStatus } from '../branches/entities/branch.entity';
+import { Course, CourseStatus } from '../courses/entities/course.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
@@ -51,6 +53,10 @@ export class SchedulesService {
     private readonly schedulesRepository: Repository<Schedule>,
     @InjectRepository(Class)
     private readonly classesRepository: Repository<Class>,
+    @InjectRepository(Branch)
+    private readonly branchesRepository: Repository<Branch>,
+    @InjectRepository(Course)
+    private readonly coursesRepository: Repository<Course>,
     @InjectRepository(Membership)
     private readonly membershipsRepository: Repository<Membership>,
     private readonly dataSource: DataSource,
@@ -89,6 +95,35 @@ export class SchedulesService {
     return membership.organizationId;
   }
 
+  private async assertIsAdminOrOwner(
+    userId: string,
+    organizationId: string,
+  ): Promise<void> {
+    const membership = await this.membershipsRepository.findOne({
+      where: {
+        userId,
+        organizationId,
+        status: MembershipStatus.ACTIVE,
+      },
+      relations: { role: true },
+    });
+
+    if (!membership || !membership.role) {
+      throw new ForbiddenException(
+        'User does not have access to this organization',
+      );
+    }
+
+    const roleName = membership.role.name.toLowerCase();
+    const isManager = roleName.includes('owner') || roleName.includes('admin');
+
+    if (!isManager) {
+      throw new ForbiddenException(
+        'Only an owner or admin can perform this action',
+      );
+    }
+  }
+
   /**
    * Ensures the class exists, belongs to the current organization, and is not
    * cancelled/completed (only editable states allow scheduling).
@@ -115,6 +150,27 @@ export class SchedulesService {
     }
 
     return classEntity;
+  }
+
+  /**
+   * A class's branch and course must both still be active before a new
+   * schedule can be created.
+   */
+  private async assertBranchAndCourseActive(classEntity: Class): Promise<void> {
+    const [branch, course] = await Promise.all([
+      this.branchesRepository.findOneBy({ id: classEntity.branchId }),
+      this.coursesRepository.findOneBy({ id: classEntity.courseId }),
+    ]);
+
+    if (!branch || branch.status !== BranchStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Chi nhánh của lớp hiện không hoạt động',
+      );
+    }
+
+    if (!course || course.status !== CourseStatus.ACTIVE) {
+      throw new BadRequestException('Khóa học của lớp hiện không hoạt động');
+    }
   }
 
   private validateTimeRange(startTime: string, endTime: string): void {
@@ -269,6 +325,7 @@ export class SchedulesService {
     );
 
     const classEntity = await this.assertClassEditable(organizationId, classId);
+    await this.assertBranchAndCourseActive(classEntity);
     const { dayOfWeek, startTime, endTime, room } = createScheduleDto;
 
     this.validateTimeRange(startTime, endTime);
@@ -313,6 +370,8 @@ export class SchedulesService {
 
     const classEntity = await this.assertClassEditable(organizationId, classId);
     const sessions = createSessionsDto.sessions;
+
+    await this.assertBranchAndCourseActive(classEntity);
 
     for (const session of sessions) {
       this.validateTimeRange(session.startTime, session.endTime);
@@ -520,6 +579,7 @@ export class SchedulesService {
       userId,
       options.organizationId,
     );
+    await this.assertIsAdminOrOwner(userId, organizationId);
 
     const schedule = await this.schedulesRepository.findOneBy({ id });
     if (!schedule) {

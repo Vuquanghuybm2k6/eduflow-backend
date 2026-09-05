@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -24,7 +25,7 @@ export class SchedulesController {
   @Post('classes/:classId/schedules/bulk')
   createBulk(
     @CurrentUser('userId') userId: string,
-    @Param('classId') classId: string,
+    @Param('classId', ParseUUIDPipe) classId: string,
     @Body() createSessionsDto: CreateSessionsDto,
     @Query('organizationId') organizationId?: string,
   ) {
@@ -39,7 +40,7 @@ export class SchedulesController {
   @Post('classes/:classId/schedules')
   create(
     @CurrentUser('userId') userId: string,
-    @Param('classId') classId: string,
+    @Param('classId', ParseUUIDPipe) classId: string,
     @Body() createScheduleDto: CreateScheduleDto,
     @Query('organizationId') organizationId?: string,
   ) {
@@ -51,7 +52,7 @@ export class SchedulesController {
   @Get('classes/:classId/schedules')
   findAll(
     @CurrentUser('userId') userId: string,
-    @Param('classId') classId: string,
+    @Param('classId', ParseUUIDPipe) classId: string,
     @Query('organizationId') organizationId?: string,
   ) {
     return this.schedulesService.findAll(userId, classId, { organizationId });
@@ -60,7 +61,7 @@ export class SchedulesController {
   @Patch('schedules/:id')
   update(
     @CurrentUser('userId') userId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateScheduleDto: UpdateScheduleDto,
     @Query('organizationId') organizationId?: string,
   ) {
@@ -72,7 +73,7 @@ export class SchedulesController {
   @Delete('schedules/:id')
   remove(
     @CurrentUser('userId') userId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query('organizationId') organizationId?: string,
   ) {
     return this.schedulesService.remove(userId, id, { organizationId });

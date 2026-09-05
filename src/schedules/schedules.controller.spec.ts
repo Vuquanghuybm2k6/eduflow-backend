@@ -5,6 +5,8 @@ import { SchedulesController } from './schedules.controller';
 import { SchedulesService } from './schedules.service';
 import { Schedule } from './entities/schedule.entity';
 import { Class } from '../classes/entities/class.entity';
+import { Branch } from '../branches/entities/branch.entity';
+import { Course } from '../courses/entities/course.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 
 describe('SchedulesController', () => {
@@ -34,9 +36,22 @@ describe('SchedulesController', () => {
           },
         },
         {
+          provide: getRepositoryToken(Branch),
+          useValue: {
+            findOneBy: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Course),
+          useValue: {
+            findOneBy: jest.fn(),
+          },
+        },
+        {
           provide: getRepositoryToken(Membership),
           useValue: {
             createQueryBuilder: jest.fn(),
+            findOne: jest.fn(),
           },
         },
         {

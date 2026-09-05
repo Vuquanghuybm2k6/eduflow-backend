@@ -4,6 +4,7 @@ import { DataSource, Repository } from 'typeorm';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { SchedulesService } from './schedules.service';
@@ -13,6 +14,8 @@ import {
   ClassLifecycleStatus,
   ClassStatus,
 } from '../classes/entities/class.entity';
+import { Branch, BranchStatus } from '../branches/entities/branch.entity';
+import { Course, CourseStatus } from '../courses/entities/course.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 
 const userId = 'user-1';
@@ -35,6 +38,8 @@ describe('SchedulesService', () => {
   let service: SchedulesService;
   let scheduleRepo: jest.Mocked<Partial<Repository<Schedule>>>;
   let classRepo: jest.Mocked<Partial<Repository<Class>>>;
+  let branchRepo: jest.Mocked<Partial<Repository<Branch>>>;
+  let courseRepo: jest.Mocked<Partial<Repository<Course>>>;
   let membershipRepo: jest.Mocked<Partial<Repository<Membership>>>;
   const dataSource = {
     transaction: jest.fn((cb: (manager: any) => any) =>
@@ -65,9 +70,22 @@ describe('SchedulesService', () => {
           },
         },
         {
+          provide: getRepositoryToken(Branch),
+          useValue: {
+            findOneBy: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Course),
+          useValue: {
+            findOneBy: jest.fn(),
+          },
+        },
+        {
           provide: getRepositoryToken(Membership),
           useValue: {
             createQueryBuilder: jest.fn(),
+            findOne: jest.fn(),
           },
         },
         {
@@ -80,7 +98,26 @@ describe('SchedulesService', () => {
     service = module.get<SchedulesService>(SchedulesService);
     scheduleRepo = module.get(getRepositoryToken(Schedule));
     classRepo = module.get(getRepositoryToken(Class));
+    branchRepo = module.get(getRepositoryToken(Branch));
+    courseRepo = module.get(getRepositoryToken(Course));
     membershipRepo = module.get(getRepositoryToken(Membership));
+
+    // Default: branch and course are still active.
+    branchRepo.findOneBy.mockResolvedValue({
+      id: 'branch-1',
+      status: BranchStatus.ACTIVE,
+    } as Branch);
+    courseRepo.findOneBy.mockResolvedValue({
+      id: 'course-1',
+      status: CourseStatus.ACTIVE,
+    } as Course);
+
+    // Default: the current user is an owner/admin.
+    membershipRepo.findOne.mockResolvedValue({
+      id: 'm-1',
+      organizationId,
+      role: { name: 'Owner' },
+    } as any);
 
     // Default: resolveOrganizationId succeeds via the membership repo.
     membershipRepo.createQueryBuilder.mockReturnValue({
@@ -186,6 +223,28 @@ describe('SchedulesService', () => {
       await expect(
         service.create(userId, classId, baseDto),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejects when the class branch is not active', async () => {
+      branchRepo.findOneBy.mockResolvedValue({
+        id: 'branch-1',
+        status: BranchStatus.INACTIVE,
+      } as Branch);
+
+      await expect(
+        service.create(userId, classId, baseDto),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects when the class course is not active', async () => {
+      courseRepo.findOneBy.mockResolvedValue({
+        id: 'course-1',
+        status: CourseStatus.INACTIVE,
+      } as Course);
+
+      await expect(
+        service.create(userId, classId, baseDto),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects when the teacher teaches an overlapping class', async () => {
@@ -331,6 +390,55 @@ describe('SchedulesService', () => {
       await expect(
         service.createBulk(userId, classId, sessions()),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejects when the class course is not active', async () => {
+      courseRepo.findOneBy.mockResolvedValue({
+        id: 'course-1',
+        status: CourseStatus.INACTIVE,
+      } as Course);
+
+      await expect(
+        service.createBulk(userId, classId, sessions()),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('remove', () => {
+    it('throws ForbiddenException when the user is not an owner or admin', async () => {
+      membershipRepo.findOne.mockResolvedValue({
+        id: 'm-1',
+        organizationId,
+        role: { name: 'Staff' },
+      } as any);
+
+      await expect(service.remove(userId, 'sched-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(scheduleRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('allows an owner/admin to delete the schedule', async () => {
+      scheduleRepo.findOneBy.mockResolvedValue({
+        id: 'sched-1',
+        classId,
+      } as Schedule);
+      classRepo.findOneBy.mockResolvedValue({
+        id: classId,
+        organizationId,
+        teacherId,
+        status: ClassStatus.ACTIVE,
+        lifecycleStatus: ClassLifecycleStatus.UPCOMING,
+      } as Class);
+      scheduleRepo.remove.mockResolvedValue({
+        id: 'sched-1',
+        classId,
+      } as Schedule);
+
+      const result = await service.remove(userId, 'sched-1');
+
+      expect(scheduleRepo.remove).toHaveBeenCalled();
+      expect(result.id).toBe('sched-1');
     });
   });
 });
