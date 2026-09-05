@@ -19,7 +19,7 @@ import {
   Membership,
   MembershipStatus,
 } from '../memberships/entities/membership.entity';
-import { Class, ClassStatus } from '../classes/entities/class.entity';
+import { Class, ClassLifecycleStatus } from '../classes/entities/class.entity';
 import { Branch, BranchStatus } from '../branches/entities/branch.entity';
 
 export interface OrgContextOptions {
@@ -379,7 +379,7 @@ export class TeachersService {
       const activeClasses = await this.classesRepository.find({
         where: {
           teacherId: id,
-          status: Not(ClassStatus.CANCELLED),
+          lifecycleStatus: Not(ClassLifecycleStatus.CANCELLED),
         },
       });
 

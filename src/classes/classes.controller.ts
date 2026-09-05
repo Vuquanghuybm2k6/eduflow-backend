@@ -12,6 +12,7 @@ import {
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
+import { FindClassesQueryDto } from './dto/find-classes-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -34,9 +35,10 @@ export class ClassesController {
   @Get()
   findAll(
     @CurrentUser('userId') userId: string,
-    @Query('organizationId') organizationId?: string,
+    @Query() query: FindClassesQueryDto,
   ) {
-    return this.classesService.findAll(userId, { organizationId });
+    const { organizationId, ...filters } = query;
+    return this.classesService.findAll(userId, { organizationId }, filters);
   }
 
   @Get(':id')

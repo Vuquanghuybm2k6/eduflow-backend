@@ -19,8 +19,13 @@ import { Enrollment } from '../../enrollments/entities/enrollment.entity';
 import { Schedule } from '../../schedules/entities/schedule.entity';
 
 export enum ClassStatus {
-  UPCOMING = 'UPCOMING',
   ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+}
+
+export enum ClassLifecycleStatus {
+  UPCOMING = 'UPCOMING',
+  ONGOING = 'ONGOING',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
 }
@@ -32,64 +37,94 @@ export class Class {
   id!: string;
 
   @Index()
-  @Column({ type: 'uuid' })
+  @Column({ name: 'organization_id', type: 'uuid' })
   organizationId!: string;
 
   @Index()
-  @Column({ type: 'uuid' })
+  @Column({ name: 'branch_id', type: 'uuid' })
   branchId!: string;
 
   @Index()
-  @Column({ type: 'uuid' })
+  @Column({ name: 'course_id', type: 'uuid' })
   courseId!: string;
 
-  @Column({ type: 'text' })
-  name!: string;
-
-  @Column({ type: 'text' })
-  code!: string;
-
-  @Index()
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ name: 'teacher_id', type: 'uuid', nullable: true })
   teacherId!: string | null;
 
-  @Column({ type: 'date' })
+  @Column({ type: 'varchar', length: 150 })
+  name!: string;
+
+  @Column({ type: 'varchar', length: 50 })
+  code!: string;
+
+  @Column({ name: 'start_date', type: 'date' })
   startDate!: Date;
 
-  @Column({ type: 'date' })
+  @Column({ name: 'end_date', type: 'date' })
   endDate!: Date;
 
-  @Column({ type: 'int' })
+  @Column({ name: 'capacity', type: 'int' })
   capacity!: number;
 
+  /**
+   * Record status:
+   * ACTIVE   -> Class đang được sử dụng
+   * INACTIVE -> Class không còn hoạt động trong hệ thống
+   */
   @Column({
+    name: 'status',
     type: 'enum',
     enum: ClassStatus,
     enumName: 'ClassStatus',
-    default: ClassStatus.UPCOMING,
+    default: ClassStatus.ACTIVE,
   })
   status!: ClassStatus;
+
+  /**
+   * Lifecycle status:
+   * UPCOMING  -> Chưa bắt đầu
+   * ONGOING   -> Đang diễn ra
+   * COMPLETED -> Đã hoàn thành
+   * CANCELLED -> Đã bị hủy
+   */
+  @Column({
+    name: 'lifecycle_status',
+    type: 'enum',
+    enum: ClassLifecycleStatus,
+    enumName: 'ClassLifecycleStatus',
+    default: ClassLifecycleStatus.UPCOMING,
+  })
+  lifecycleStatus!: ClassLifecycleStatus;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamp', precision: 3 })
+  createdAt!: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp', precision: 3 })
+  updatedAt!: Date;
+
+  // =========================
+  // Relations
+  // =========================
 
   @ManyToOne(() => Organization, (organization) => organization.classes, {
     onDelete: 'CASCADE',
   })
+  @JoinColumn({ name: 'organization_id' })
   organization!: Organization;
 
-  @ManyToOne(() => Branch, (branch) => branch.classes, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(() => Branch, (branch) => branch.classes, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'branch_id' })
   branch!: Branch;
 
-  @ManyToOne(() => Course, (course) => course.classes, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(() => Course, (course) => course.classes, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'course_id' })
   course!: Course;
 
   @ManyToOne(() => Teacher, (teacher) => teacher.classes, {
     onDelete: 'SET NULL',
     nullable: true,
   })
-  @JoinColumn({ name: 'teacherId' })
+  @JoinColumn({ name: 'teacher_id' })
   teacher!: Teacher | null;
 
   @OneToMany(() => Enrollment, (enrollment) => enrollment.class)
@@ -97,10 +132,4 @@ export class Class {
 
   @OneToMany(() => Schedule, (schedule) => schedule.class)
   schedules!: Schedule[];
-
-  @CreateDateColumn({ type: 'timestamp', precision: 3 })
-  createdAt!: Date;
-
-  @UpdateDateColumn({ type: 'timestamp', precision: 3 })
-  updatedAt!: Date;
 }

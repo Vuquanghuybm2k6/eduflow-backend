@@ -8,7 +8,11 @@ import {
 } from '@nestjs/common';
 import { SchedulesService } from './schedules.service';
 import { DayOfWeek, Schedule } from './entities/schedule.entity';
-import { Class, ClassStatus } from '../classes/entities/class.entity';
+import {
+  Class,
+  ClassLifecycleStatus,
+  ClassStatus,
+} from '../classes/entities/class.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 
 const userId = 'user-1';
@@ -108,6 +112,7 @@ describe('SchedulesService', () => {
         organizationId,
         teacherId,
         status: ClassStatus.ACTIVE,
+        lifecycleStatus: ClassLifecycleStatus.UPCOMING,
       });
       scheduleRepo.find.mockResolvedValue([]);
     });
@@ -230,6 +235,7 @@ describe('SchedulesService', () => {
         organizationId,
         teacherId,
         status: ClassStatus.ACTIVE,
+        lifecycleStatus: ClassLifecycleStatus.UPCOMING,
       });
       scheduleRepo.find.mockResolvedValue([]);
       dataSource.transaction.mockImplementation((cb: (manager: any) => any) =>

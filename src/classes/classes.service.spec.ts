@@ -3,14 +3,22 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ClassesService } from './classes.service';
-import { Class, ClassStatus } from './entities/class.entity';
+import {
+  Class,
+  ClassLifecycleStatus,
+  ClassStatus,
+} from './entities/class.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Branch, BranchStatus } from '../branches/entities/branch.entity';
-import { Course } from '../courses/entities/course.entity';
+import { Course, CourseStatus } from '../courses/entities/course.entity';
 import { Teacher, TeacherStatus } from '../teachers/entities/teacher.entity';
-import { Enrollment, EnrollmentStatus } from '../enrollments/entities/enrollment.entity';
+import {
+  Enrollment,
+  EnrollmentStatus,
+} from '../enrollments/entities/enrollment.entity';
 import { DayOfWeek, Schedule } from '../schedules/entities/schedule.entity';
 
 describe('ClassesService', () => {
@@ -127,7 +135,8 @@ describe('ClassesService', () => {
       startDate: '2026-09-01',
       endDate: '2026-12-31',
       capacity: 30,
-      status: ClassStatus.UPCOMING,
+      status: ClassStatus.ACTIVE,
+      lifecycleStatus: ClassLifecycleStatus.UPCOMING,
     } as Class;
 
     beforeEach(() => {
@@ -136,16 +145,17 @@ describe('ClassesService', () => {
         id: 'branch-1',
         organizationId: 'org-1',
         status: BranchStatus.ACTIVE,
-      } as Branch);
+      });
       coursesRepo.findOne.mockResolvedValue({
         id: 'course-1',
         organizationId: 'org-1',
-      } as Course);
+        status: CourseStatus.ACTIVE,
+      });
       teachersRepo.findOneBy.mockResolvedValue({
         id: 'teacher-1',
         organizationId: 'org-1',
         status: TeacherStatus.ACTIVE,
-      } as Teacher);
+      });
     });
 
     it('throws BadRequestException when reducing capacity below active enrollments', async () => {
@@ -193,6 +203,19 @@ describe('ClassesService', () => {
       expect(classesRepo.save).not.toHaveBeenCalled();
     });
 
+    it('throws ConflictException when the course is INACTIVE', async () => {
+      coursesRepo.findOne.mockResolvedValue({
+        id: 'course-1',
+        organizationId: 'org-1',
+        status: CourseStatus.INACTIVE,
+      });
+
+      await expect(
+        service.update('user-1', 'c-1', { name: 'Lớp Toán 10C' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(classesRepo.save).not.toHaveBeenCalled();
+    });
+
     it('allows changing the teacher when schedules do not overlap', async () => {
       enrollmentsRepo.countBy.mockResolvedValue(5);
       scheduleQueryBuilder.getMany.mockResolvedValue([]);
@@ -211,10 +234,29 @@ describe('ClassesService', () => {
       id: 'c-1',
       organizationId: 'org-1',
       status: ClassStatus.ACTIVE,
+      lifecycleStatus: ClassLifecycleStatus.UPCOMING,
     } as Class;
 
     beforeEach(() => {
       classesRepo.findOneBy.mockResolvedValue(existingClass);
+      membershipsRepo.findOne.mockResolvedValue({
+        id: 'm-1',
+        organizationId: 'org-1',
+        role: { name: 'Owner' },
+      });
+    });
+
+    it('throws ForbiddenException when the user is not an owner or admin', async () => {
+      membershipsRepo.findOne.mockResolvedValue({
+        id: 'm-1',
+        organizationId: 'org-1',
+        role: { name: 'Staff' },
+      });
+
+      await expect(service.remove('user-1', 'c-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(classesRepo.save).not.toHaveBeenCalled();
     });
 
     it('throws ConflictException when the class still has active enrollments', async () => {
@@ -236,7 +278,7 @@ describe('ClassesService', () => {
       expect(classesRepo.save).not.toHaveBeenCalled();
     });
 
-    it('cancels the class when no active enrollments and no schedules remain', async () => {
+    it('deactivates the class when no active enrollments and no schedules remain', async () => {
       enrollmentsRepo.countBy.mockResolvedValue(0);
       schedulesRepo.countBy.mockResolvedValue(0);
 
@@ -245,9 +287,11 @@ describe('ClassesService', () => {
       expect(classesRepo.save).toHaveBeenCalledWith({
         id: 'c-1',
         organizationId: 'org-1',
-        status: ClassStatus.CANCELLED,
+        status: ClassStatus.INACTIVE,
+        lifecycleStatus: ClassLifecycleStatus.CANCELLED,
       });
-      expect(result.status).toBe(ClassStatus.CANCELLED);
+      expect(result.status).toBe(ClassStatus.INACTIVE);
+      expect(result.lifecycleStatus).toBe(ClassLifecycleStatus.CANCELLED);
     });
   });
 
@@ -264,22 +308,24 @@ describe('ClassesService', () => {
         startDate: '2026-09-01',
         endDate: '2026-12-31',
         capacity: 30,
-        status: ClassStatus.UPCOMING,
-      } as Class);
+        status: ClassStatus.ACTIVE,
+        lifecycleStatus: ClassLifecycleStatus.UPCOMING,
+      });
       branchesRepo.findOne.mockResolvedValue({
         id: 'branch-1',
         organizationId: 'org-1',
         status: BranchStatus.ACTIVE,
-      } as Branch);
+      });
       coursesRepo.findOne.mockResolvedValue({
         id: 'course-1',
         organizationId: 'org-1',
-      } as Course);
+        status: CourseStatus.ACTIVE,
+      });
       teachersRepo.findOneBy.mockResolvedValue({
         id: 'teacher-1',
         organizationId: 'org-1',
         status: TeacherStatus.ACTIVE,
-      } as Teacher);
+      });
     });
 
     it('counts enrollments with status ACTIVE', async () => {

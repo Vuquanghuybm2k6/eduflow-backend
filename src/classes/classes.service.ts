@@ -8,19 +8,34 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { Class, ClassStatus } from './entities/class.entity';
+import {
+  Class,
+  ClassLifecycleStatus,
+  ClassStatus,
+} from './entities/class.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { Branch, BranchStatus } from '../branches/entities/branch.entity';
-import { Course } from '../courses/entities/course.entity';
+import { Course, CourseStatus } from '../courses/entities/course.entity';
 import { Teacher, TeacherStatus } from '../teachers/entities/teacher.entity';
-import { Enrollment, EnrollmentStatus } from '../enrollments/entities/enrollment.entity';
+import {
+  Enrollment,
+  EnrollmentStatus,
+} from '../enrollments/entities/enrollment.entity';
 import { DayOfWeek, Schedule } from '../schedules/entities/schedule.entity';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 
 export interface OrgContextOptions {
   organizationId?: string;
+}
+
+export interface FindClassesFilters {
+  status?: ClassStatus;
+  lifecycleStatus?: ClassLifecycleStatus;
+  branchId?: string;
+  courseId?: string;
+  teacherId?: string;
 }
 
 const DAY_LABELS: Record<DayOfWeek, string> = {
@@ -85,14 +100,40 @@ export class ClassesService {
     return membership.organizationId;
   }
 
+  private async assertIsAdminOrOwner(userId: string, organizationId: string) {
+    const membership = await this.membershipsRepository.findOne({
+      where: {
+        userId,
+        organizationId,
+        status: MembershipStatus.ACTIVE,
+      },
+      relations: { role: true },
+    });
+
+    if (!membership || !membership.role) {
+      throw new ForbiddenException(
+        'User does not have access to this organization',
+      );
+    }
+
+    const roleName = membership.role.name.toLowerCase();
+    const isManager = roleName.includes('owner') || roleName.includes('admin');
+
+    if (!isManager) {
+      throw new ForbiddenException(
+        'Only an owner or admin can perform this action',
+      );
+    }
+  }
+
   /**
-   * Derives the current status from the clock, but never overrides a manual
-   * CANCELLED state. The stored `status` column is left untouched; only the
-   * returned object reflects the computed value.
+   * Derives the current lifecycle status from the clock, but never overrides a
+   * manual CANCELLED state. The stored `lifecycleStatus` column is left
+   * untouched; only the returned object reflects the computed value.
    */
-  private computeStatus(classEntity: Class): ClassStatus {
-    if (classEntity.status === ClassStatus.CANCELLED) {
-      return ClassStatus.CANCELLED;
+  private computeLifecycleStatus(classEntity: Class): ClassLifecycleStatus {
+    if (classEntity.lifecycleStatus === ClassLifecycleStatus.CANCELLED) {
+      return ClassLifecycleStatus.CANCELLED;
     }
 
     const now = new Date();
@@ -100,20 +141,20 @@ export class ClassesService {
     const end = new Date(classEntity.endDate);
 
     if (now < start) {
-      return ClassStatus.UPCOMING;
+      return ClassLifecycleStatus.UPCOMING;
     }
 
     if (now <= end) {
-      return ClassStatus.ACTIVE;
+      return ClassLifecycleStatus.ONGOING;
     }
 
-    return ClassStatus.COMPLETED;
+    return ClassLifecycleStatus.COMPLETED;
   }
 
-  private applyComputedStatus(
+  private applyComputedLifecycleStatus(
     classEntity: Class,
-  ): Class & { status: ClassStatus } {
-    classEntity.status = this.computeStatus(classEntity);
+  ): Class & { lifecycleStatus: ClassLifecycleStatus } {
+    classEntity.lifecycleStatus = this.computeLifecycleStatus(classEntity);
     return classEntity;
   }
 
@@ -168,10 +209,13 @@ export class ClassesService {
 
     const course = await this.coursesRepository.findOne({
       where: { id: courseId },
-      select: ['organizationId'],
+      select: ['organizationId', 'status'],
     });
     if (!course || course.organizationId !== organizationId) {
       throw new ForbiddenException('Khóa học không thuộc tổ chức hiện tại');
+    }
+    if (course.status !== CourseStatus.ACTIVE) {
+      throw new ConflictException('Khóa học hiện đang ngừng hoạt động');
     }
 
     if (teacherId) {
@@ -245,8 +289,8 @@ export class ClassesService {
       .where('class.organizationId = :organizationId', { organizationId })
       .andWhere('class.teacherId = :teacherId', { teacherId })
       .andWhere('class.id != :classId', { classId })
-      .andWhere('class.status != :cancelledStatus', {
-        cancelledStatus: ClassStatus.CANCELLED,
+      .andWhere('class.lifecycleStatus != :cancelledStatus', {
+        cancelledStatus: ClassLifecycleStatus.CANCELLED,
       })
       .getMany();
 
@@ -294,26 +338,44 @@ export class ClassesService {
       startDate: createClassDto.startDate,
       endDate: createClassDto.endDate,
       teacherId: createClassDto.teacherId ?? null,
-      status: ClassStatus.UPCOMING,
+      lifecycleStatus: ClassLifecycleStatus.UPCOMING,
       organizationId,
     });
 
     const saved = await this.classesRepository.save(classEntity);
-    return this.applyComputedStatus(saved);
+    return this.applyComputedLifecycleStatus(saved);
   }
 
-  async findAll(userId: string, options: OrgContextOptions = {}) {
+  async findAll(
+    userId: string,
+    options: OrgContextOptions = {},
+    filters: FindClassesFilters = {},
+  ) {
     const organizationId = await this.resolveOrganizationId(
       userId,
       options.organizationId,
     );
 
     const classes = await this.classesRepository.find({
-      where: { organizationId },
+      where: {
+        organizationId,
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.branchId ? { branchId: filters.branchId } : {}),
+        ...(filters.courseId ? { courseId: filters.courseId } : {}),
+        ...(filters.teacherId ? { teacherId: filters.teacherId } : {}),
+      },
       order: { createdAt: 'DESC' },
     });
 
-    return classes.map((c) => this.applyComputedStatus(c));
+    const withComputedLifecycle = classes.map((c) =>
+      this.applyComputedLifecycleStatus(c),
+    );
+
+    return filters.lifecycleStatus
+      ? withComputedLifecycle.filter(
+          (c) => c.lifecycleStatus === filters.lifecycleStatus,
+        )
+      : withComputedLifecycle;
   }
 
   async findOne(userId: string, id: string, options: OrgContextOptions = {}) {
@@ -331,7 +393,7 @@ export class ClassesService {
       throw new NotFoundException('Lớp học không tồn tại');
     }
 
-    return this.applyComputedStatus(classEntity);
+    return this.applyComputedLifecycleStatus(classEntity);
   }
 
   async update(
@@ -382,10 +444,7 @@ export class ClassesService {
       updateClassDto.capacity !== undefined &&
       updateClassDto.capacity < classEntity.capacity
     ) {
-      await this.assertCapacityNotBelowEnrollments(
-        id,
-        updateClassDto.capacity,
-      );
+      await this.assertCapacityNotBelowEnrollments(id, updateClassDto.capacity);
     }
 
     const effectiveTeacherId = teacherId ?? null;
@@ -400,18 +459,20 @@ export class ClassesService {
     Object.assign(classEntity, updateClassDto);
 
     const saved = await this.classesRepository.save(classEntity);
-    return this.applyComputedStatus(saved);
+    return this.applyComputedLifecycleStatus(saved);
   }
 
   /**
    * No physical delete: a class keeps its history (students / attendance /
-   * grades). Deleting just marks the class as CANCELLED.
+   * grades). Deleting just deactivates the record (status = INACTIVE) and
+   * marks the lifecycle as CANCELLED.
    */
   async remove(userId: string, id: string, options: OrgContextOptions = {}) {
     const organizationId = await this.resolveOrganizationId(
       userId,
       options.organizationId,
     );
+    await this.assertIsAdminOrOwner(userId, organizationId);
 
     const classEntity = await this.classesRepository.findOneBy({
       id,
@@ -433,7 +494,9 @@ export class ClassesService {
       );
     }
 
-    const scheduleCount = await this.schedulesRepository.countBy({ classId: id });
+    const scheduleCount = await this.schedulesRepository.countBy({
+      classId: id,
+    });
 
     if (scheduleCount > 0) {
       throw new ConflictException(
@@ -441,16 +504,13 @@ export class ClassesService {
       );
     }
 
-    classEntity.status = ClassStatus.CANCELLED;
+    classEntity.status = ClassStatus.INACTIVE;
+    classEntity.lifecycleStatus = ClassLifecycleStatus.CANCELLED;
 
     return this.classesRepository.save(classEntity);
   }
 
-  async duplicate(
-    userId: string,
-    id: string,
-    options: OrgContextOptions = {},
-  ) {
+  async duplicate(userId: string, id: string, options: OrgContextOptions = {}) {
     const organizationId = await this.resolveOrganizationId(
       userId,
       options.organizationId,
@@ -477,11 +537,11 @@ export class ClassesService {
       startDate: original.startDate,
       endDate: original.endDate,
       capacity: original.capacity,
-      status: ClassStatus.UPCOMING,
+      lifecycleStatus: ClassLifecycleStatus.UPCOMING,
       organizationId,
     });
 
     const saved = await this.classesRepository.save(duplicate);
-    return this.applyComputedStatus(saved);
+    return this.applyComputedLifecycleStatus(saved);
   }
 }

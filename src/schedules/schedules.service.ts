@@ -9,7 +9,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
 import { DayOfWeek, Schedule } from './entities/schedule.entity';
-import { Class, ClassStatus } from '../classes/entities/class.entity';
+import {
+  Class,
+  ClassLifecycleStatus,
+  ClassStatus,
+} from '../classes/entities/class.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
@@ -102,7 +106,11 @@ export class SchedulesService {
       throw new NotFoundException('Lớp học không tồn tại');
     }
 
-    if (classEntity.status === ClassStatus.CANCELLED) {
+    if (classEntity.status !== ClassStatus.ACTIVE) {
+      throw new BadRequestException('Lớp học hiện không hoạt động');
+    }
+
+    if (classEntity.lifecycleStatus === ClassLifecycleStatus.CANCELLED) {
       throw new BadRequestException('Không thể tạo lịch học cho lớp đã bị hủy');
     }
 
@@ -212,8 +220,8 @@ export class SchedulesService {
       .where('class.organizationId = :organizationId', { organizationId })
       .andWhere('class.teacherId = :teacherId', { teacherId })
       .andWhere('class.id != :classId', { classId })
-      .andWhere('class.status != :cancelledStatus', {
-        cancelledStatus: ClassStatus.CANCELLED,
+      .andWhere('class.lifecycleStatus != :cancelledStatus', {
+        cancelledStatus: ClassLifecycleStatus.CANCELLED,
       })
       .andWhere('schedule.dayOfWeek = :dayOfWeek', { dayOfWeek })
       .getMany();
@@ -376,8 +384,8 @@ export class SchedulesService {
           teacherId: classEntity.teacherId,
         })
         .andWhere('class.id != :classId', { classId })
-        .andWhere('class.status != :cancelledStatus', {
-          cancelledStatus: ClassStatus.CANCELLED,
+        .andWhere('class.lifecycleStatus != :cancelledStatus', {
+          cancelledStatus: ClassLifecycleStatus.CANCELLED,
         })
         .getMany();
 

@@ -12,7 +12,7 @@ import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
-import { Class, ClassStatus } from '../classes/entities/class.entity';
+import { Class, ClassLifecycleStatus } from '../classes/entities/class.entity';
 
 export interface OrgContextOptions {
   organizationId?: string;
@@ -151,7 +151,11 @@ export class BranchesService {
       updateBranchDto.code !== undefined &&
       updateBranchDto.code !== branch.code
     ) {
-      await this.assertBranchCodeAvailable(organizationId, updateBranchDto.code, id);
+      await this.assertBranchCodeAvailable(
+        organizationId,
+        updateBranchDto.code,
+        id,
+      );
     }
 
     Object.assign(branch, updateBranchDto);
@@ -177,8 +181,8 @@ export class BranchesService {
     const activeClassCount = await this.classesRepository
       .createQueryBuilder('class')
       .where('class.branchId = :branchId', { branchId: id })
-      .andWhere('class.status != :cancelled', {
-        cancelled: ClassStatus.CANCELLED,
+      .andWhere('class.lifecycleStatus != :cancelled', {
+        cancelled: ClassLifecycleStatus.CANCELLED,
       })
       .andWhere('class.endDate >= CURRENT_DATE')
       .getCount();

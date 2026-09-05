@@ -127,7 +127,7 @@ describe('BranchesService', () => {
         id: 'branch-x',
         organizationId: 'org-1',
         code: 'BR-1',
-      } as Branch);
+      });
 
       await expect(
         service.create('user-1', { name: 'Branch', code: 'BR-1' }),
@@ -186,9 +186,9 @@ describe('BranchesService', () => {
       branchRepository.findOneBy.mockResolvedValue(branch);
       classQueryBuilder.getCount.mockResolvedValue(2);
 
-      await expect(
-        service.remove('user-1', 'branch-1'),
-      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.remove('user-1', 'branch-1')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
       expect(branchRepository.save).not.toHaveBeenCalled();
     });
   });

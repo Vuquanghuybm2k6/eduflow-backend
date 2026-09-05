@@ -14,7 +14,11 @@ import { UpdateEnrollmentStatusDto } from './dto/update-enrollment-status.dto';
 import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { Student, StudentStatus } from '../students/entities/student.entity';
-import { Class, ClassStatus } from '../classes/entities/class.entity';
+import {
+  Class,
+  ClassLifecycleStatus,
+  ClassStatus,
+} from '../classes/entities/class.entity';
 
 export interface OrgContextOptions {
   organizationId?: string;
@@ -99,7 +103,11 @@ export class EnrollmentsService {
       throw new NotFoundException('Lớp học không tồn tại');
     }
 
-    if (classEntity.status === ClassStatus.CANCELLED) {
+    if (classEntity.status !== ClassStatus.ACTIVE) {
+      throw new BadRequestException('Lớp học hiện không hoạt động');
+    }
+
+    if (classEntity.lifecycleStatus === ClassLifecycleStatus.CANCELLED) {
       throw new BadRequestException('Không thể ghi danh vào lớp đã hủy');
     }
 
