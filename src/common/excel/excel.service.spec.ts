@@ -156,6 +156,32 @@ describe('ExcelService', () => {
       });
     });
 
+    it('should normalize hyperlink cells to their text', () => {
+      const worksheet = service.addWorksheet(
+        service.createWorkbook(),
+        'Students',
+      );
+      service.writeHeaders(worksheet, [
+        'student_code',
+        'full_name',
+        'email',
+        'branch_code',
+      ]);
+      service.writeRows(worksheet, [['ST001', 'Nguyen A', 'x', 'HN01']]);
+      worksheet.getCell('C2').value = {
+        text: 'a@gmail.com',
+        hyperlink: 'mailto:a@gmail.com',
+      };
+
+      const rows = service.getRows(worksheet);
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toEqual({
+        rowNumber: 2,
+        values: ['ST001', 'Nguyen A', 'a@gmail.com', 'HN01'],
+      });
+    });
+
     it('should return an empty array when only a header row exists', () => {
       const workbook = service.createTemplate('Students', ['student_code']);
 

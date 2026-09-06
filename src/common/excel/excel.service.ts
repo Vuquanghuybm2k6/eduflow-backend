@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 
 import { ExcelRow } from './excel.types';
-import { normalizeHeader } from './excel.utils';
+import { normalizeCellValue, normalizeHeader } from './excel.utils';
 
 type ExcelJsBuffer = Parameters<ExcelJS.Workbook['xlsx']['load']>[0];
 
@@ -59,9 +59,9 @@ export class ExcelService {
 
       rows.push({
         rowNumber,
-        values: (Array.isArray(values) ? values : Object.values(values)).slice(
-          1,
-        ),
+        values: (Array.isArray(values) ? values : Object.values(values))
+          .slice(1)
+          .map((value) => normalizeCellValue(value)),
       });
     });
 

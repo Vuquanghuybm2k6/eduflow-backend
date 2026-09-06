@@ -18,6 +18,7 @@ import { StudentsModule } from './students/students.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { ExcelModule } from './common/excel/excel.module';
+import { ImportsModule } from './imports/imports.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -46,6 +47,7 @@ import { ExcelModule } from './common/excel/excel.module';
     EnrollmentsModule,
     SchedulesModule,
     ExcelModule,
+    ImportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

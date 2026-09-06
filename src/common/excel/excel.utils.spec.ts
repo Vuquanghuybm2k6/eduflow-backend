@@ -27,6 +27,24 @@ describe('excel.utils', () => {
       expect(normalizeCellValue(123)).toBe(123);
       expect(normalizeCellValue(date)).toBe(date);
       expect(normalizeCellValue(null)).toBeNull();
+      expect(normalizeCellValue(undefined)).toBeUndefined();
+    });
+
+    it('should unwrap hyperlink cells to their text', () => {
+      expect(
+        normalizeCellValue({
+          text: '  a@gmail.com  ',
+          hyperlink: 'mailto:a@gmail.com',
+        }),
+      ).toBe('a@gmail.com');
+    });
+
+    it('should unwrap rich text cells to their concatenated text', () => {
+      expect(
+        normalizeCellValue({
+          richText: [{ text: 'Nguyen ' }, { text: 'Van A' }],
+        }),
+      ).toBe('Nguyen Van A');
     });
   });
 
