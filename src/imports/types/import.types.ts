@@ -51,3 +51,10 @@ export interface ImportJobResult {
   failed: number;
   rows: ImportJobRowResult[];
 }
+
+export interface StudentImportMeta {
+  headers: string[];
+  headerLabels: Record<string, string>;
+  maxFileSizeBytes: number;
+  allowedExtensions: string[];
+}

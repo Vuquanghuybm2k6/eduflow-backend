@@ -28,7 +28,11 @@ import {
   ImportParsedRow,
   ImportPreview,
   ImportRowResult,
+  StudentImportMeta,
 } from './types/import.types';
+import { EXCEL_EXTENSION } from '../common/excel/excel.constants';
+import { IMPORT_MAX_FILE_SIZE_BYTES } from './validators/import-file.validator';
+import { STUDENT_IMPORT_HEADERS } from './validators/import-header.validator';
 import { ImportFileValidator } from './validators/import-file.validator';
 import { ImportHeaderValidator } from './validators/import-header.validator';
 import { ImportRowValidator } from './validators/import-row.validator';
@@ -54,6 +58,23 @@ export class ImportsService {
     @InjectRepository(ImportJobRow)
     private readonly importJobRowsRepository: Repository<ImportJobRow>,
   ) {}
+
+  getStudentImportMeta(): StudentImportMeta {
+    return {
+      headers: [...STUDENT_IMPORT_HEADERS],
+      headerLabels: {
+        student_code: 'Mã học viên',
+        full_name: 'Họ và tên',
+        email: 'Email',
+        phone: 'Số điện thoại',
+        date_of_birth: 'Ngày sinh',
+        gender: 'Giới tính',
+        branch_code: 'Mã chi nhánh',
+      },
+      maxFileSizeBytes: IMPORT_MAX_FILE_SIZE_BYTES,
+      allowedExtensions: [EXCEL_EXTENSION],
+    };
+  }
 
   async previewStudentImport(
     file: Express.Multer.File | undefined,

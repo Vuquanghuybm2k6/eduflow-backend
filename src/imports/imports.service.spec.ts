@@ -159,6 +159,23 @@ describe('ImportsService', () => {
     return excelService.writeWorkbook(workbook);
   }
 
+  it('returns student import metadata from the shared constants', () => {
+    const meta = service.getStudentImportMeta();
+
+    expect(meta.headers).toEqual(STUDENT_HEADERS);
+    expect(meta.headerLabels).toEqual({
+      student_code: 'Mã học viên',
+      full_name: 'Họ và tên',
+      email: 'Email',
+      phone: 'Số điện thoại',
+      date_of_birth: 'Ngày sinh',
+      gender: 'Giới tính',
+      branch_code: 'Mã chi nhánh',
+    });
+    expect(meta.maxFileSizeBytes).toBe(10 * 1024 * 1024);
+    expect(meta.allowedExtensions).toEqual(['.xlsx']);
+  });
+
   it('returns a preview with valid rows for a correct file', async () => {
     const buffer = await buildXlsx(STUDENT_HEADERS, [
       [
