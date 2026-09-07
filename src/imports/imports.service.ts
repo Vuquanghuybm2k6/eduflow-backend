@@ -15,7 +15,15 @@ import {
   Membership,
   MembershipStatus,
 } from '../memberships/entities/membership.entity';
+import {
+  STUDENT_IMPORT_HEADERS,
+  StudentImportMeta,
+} from '../students/import/student-import.types';
 import { StudentImportExecutor } from '../students/import/student-import.executor';
+import {
+  StudentImportBusinessValidator,
+  StudentImportRowValidator,
+} from '../students/import/student-import.validator';
 import { ImportJob, ImportJobStatus } from './entities/import-job.entity';
 import {
   ImportJobRow,
@@ -28,15 +36,11 @@ import {
   ImportParsedRow,
   ImportPreview,
   ImportRowResult,
-  StudentImportMeta,
 } from './types/import.types';
 import { EXCEL_EXTENSION } from '../common/excel/excel.constants';
 import { IMPORT_MAX_FILE_SIZE_BYTES } from './validators/import-file.validator';
-import { STUDENT_IMPORT_HEADERS } from './validators/import-header.validator';
 import { ImportFileValidator } from './validators/import-file.validator';
 import { ImportHeaderValidator } from './validators/import-header.validator';
-import { ImportRowValidator } from './validators/import-row.validator';
-import { ImportBusinessValidator } from './validators/import-business.validator';
 
 export interface OrgContextOptions {
   organizationId?: string;
@@ -48,8 +52,8 @@ export class ImportsService {
     private readonly excelService: ExcelService,
     private readonly fileValidator: ImportFileValidator,
     private readonly headerValidator: ImportHeaderValidator,
-    private readonly rowValidator: ImportRowValidator,
-    private readonly businessValidator: ImportBusinessValidator,
+    private readonly rowValidator: StudentImportRowValidator,
+    private readonly businessValidator: StudentImportBusinessValidator,
     private readonly studentImportExecutor: StudentImportExecutor,
     @InjectRepository(Membership)
     private readonly membershipsRepository: Repository<Membership>,
@@ -88,7 +92,7 @@ export class ImportsService {
 
     const worksheet = await this.fileValidator.validate(file);
     const headers = this.excelService.getHeaders(worksheet);
-    this.headerValidator.validate(headers);
+    this.headerValidator.validate(headers, STUDENT_IMPORT_HEADERS);
 
     const excelRows = this.excelService.getRows(worksheet);
     const parsedRows = this.parseRows(excelRows, headers);

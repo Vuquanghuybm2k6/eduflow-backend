@@ -17,7 +17,7 @@ import {
   ImportJobResult,
   ImportPreview,
 } from './types/import.types';
-import type { StudentImportMeta } from './types/import.types';
+import type { StudentImportMeta } from '../students/import/student-import.types';
 import { IMPORT_MAX_FILE_SIZE_BYTES } from './validators/import-file.validator';
 
 @UseGuards(JwtAuthGuard)

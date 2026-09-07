@@ -2,25 +2,18 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { normalizeHeader } from '../../common/excel/excel.utils';
 
-export const STUDENT_IMPORT_HEADERS: readonly string[] = [
-  'student_code',
-  'full_name',
-  'email',
-  'phone',
-  'date_of_birth',
-  'gender',
-  'branch_code',
-];
-
 @Injectable()
 export class ImportHeaderValidator {
-  validate(headers: string[]): void {
+  validate(
+    headers: string[],
+    expectedHeaders: readonly string[],
+  ): void {
     const normalized = headers.map((header) =>
       normalizeHeader(header).toLowerCase(),
     );
     const present = normalized.filter((header) => header !== '');
 
-    const missing = STUDENT_IMPORT_HEADERS.filter(
+    const missing = expectedHeaders.filter(
       (required) => !present.includes(required),
     );
 
@@ -31,7 +24,7 @@ export class ImportHeaderValidator {
     }
 
     const unexpected = present.filter(
-      (header) => !STUDENT_IMPORT_HEADERS.includes(header),
+      (header) => !expectedHeaders.includes(header),
     );
 
     if (unexpected.length > 0) {

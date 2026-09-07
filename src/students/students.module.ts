@@ -3,6 +3,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StudentsService } from './students.service';
 import { StudentsController } from './students.controller';
 import { StudentImportExecutor } from './import/student-import.executor';
+import {
+  StudentImportBusinessValidator,
+  StudentImportRowValidator,
+} from './import/student-import.validator';
 import { Student } from './entities/student.entity';
 import { User } from '../users/entities/user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
@@ -15,7 +19,17 @@ import { AuthModule } from '../auth/auth.module';
     AuthModule,
   ],
   controllers: [StudentsController],
-  providers: [StudentsService, StudentImportExecutor],
-  exports: [StudentsService, StudentImportExecutor],
+  providers: [
+    StudentsService,
+    StudentImportExecutor,
+    StudentImportRowValidator,
+    StudentImportBusinessValidator,
+  ],
+  exports: [
+    StudentsService,
+    StudentImportExecutor,
+    StudentImportRowValidator,
+    StudentImportBusinessValidator,
+  ],
 })
 export class StudentsModule {}

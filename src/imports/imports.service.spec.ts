@@ -10,13 +10,15 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ExcelService } from '../common/excel/excel.service';
 import { EXCEL_MIME_TYPE } from '../common/excel/excel.constants';
 import { Membership } from '../memberships/entities/membership.entity';
+import {
+  StudentImportBusinessValidator,
+  StudentImportRowValidator,
+} from '../students/import/student-import.validator';
 import { StudentImportExecutor } from '../students/import/student-import.executor';
 import { ImportJob } from './entities/import-job.entity';
 import { ImportJobRow } from './entities/import-job-row.entity';
-import { ImportBusinessValidator } from './validators/import-business.validator';
 import { ImportFileValidator } from './validators/import-file.validator';
 import { ImportHeaderValidator } from './validators/import-header.validator';
-import { ImportRowValidator } from './validators/import-row.validator';
 import { ImportsService } from './imports.service';
 
 const STUDENT_HEADERS = [
@@ -127,8 +129,8 @@ describe('ImportsService', () => {
         ExcelService,
         ImportFileValidator,
         ImportHeaderValidator,
-        ImportRowValidator,
-        { provide: ImportBusinessValidator, useValue: businessValidator },
+        StudentImportRowValidator,
+        { provide: StudentImportBusinessValidator, useValue: businessValidator },
         { provide: StudentImportExecutor, useValue: studentImportExecutor },
         {
           provide: getRepositoryToken(Membership),

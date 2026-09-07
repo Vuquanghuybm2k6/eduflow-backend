@@ -2,11 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { FindManyOptions } from 'typeorm';
 
-import { Student, StudentGender } from '../../students/entities/student.entity';
+import { Student, StudentGender } from '../entities/student.entity';
 import { User } from '../../users/entities/user.entity';
 import { Branch, BranchStatus } from '../../branches/entities/branch.entity';
-import { ImportRowResult } from '../types/import.types';
-import { ImportBusinessValidator } from './import-business.validator';
+import { ImportRowResult } from '../../imports/types/import.types';
+import { StudentImportBusinessValidator } from './student-import.validator';
 
 function result(
   rowNumber: number,
@@ -15,8 +15,8 @@ function result(
   return { rowNumber, values, valid: true, errors: [] };
 }
 
-describe('ImportBusinessValidator', () => {
-  let validator: ImportBusinessValidator;
+describe('StudentImportBusinessValidator', () => {
+  let validator: StudentImportBusinessValidator;
   let branchesRepository: {
     find: jest.Mock<Promise<Branch[]>, [FindManyOptions<Branch>]>;
   };
@@ -40,14 +40,14 @@ describe('ImportBusinessValidator', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        ImportBusinessValidator,
+        StudentImportBusinessValidator,
         { provide: getRepositoryToken(Branch), useValue: branchesRepository },
         { provide: getRepositoryToken(Student), useValue: studentsRepository },
         { provide: getRepositoryToken(User), useValue: usersRepository },
       ],
     }).compile();
 
-    validator = module.get(ImportBusinessValidator);
+    validator = module.get(StudentImportBusinessValidator);
   });
 
   describe('branch validation', () => {

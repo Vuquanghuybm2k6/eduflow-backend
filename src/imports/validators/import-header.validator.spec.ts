@@ -3,6 +3,16 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { ImportHeaderValidator } from './import-header.validator';
 
+const EXPECTED_HEADERS = [
+  'student_code',
+  'full_name',
+  'email',
+  'phone',
+  'date_of_birth',
+  'gender',
+  'branch_code',
+];
+
 describe('ImportHeaderValidator', () => {
   let validator: ImportHeaderValidator;
 
@@ -25,7 +35,7 @@ describe('ImportHeaderValidator', () => {
       'branch_code',
     ];
 
-    expect(() => validator.validate(headers)).not.toThrow();
+    expect(() => validator.validate(headers, EXPECTED_HEADERS)).not.toThrow();
   });
 
   it('accepts headers in any order', () => {
@@ -39,7 +49,7 @@ describe('ImportHeaderValidator', () => {
       'phone',
     ];
 
-    expect(() => validator.validate(headers)).not.toThrow();
+    expect(() => validator.validate(headers, EXPECTED_HEADERS)).not.toThrow();
   });
 
   it('accepts headers with surrounding whitespace and different casing', () => {
@@ -53,7 +63,7 @@ describe('ImportHeaderValidator', () => {
       'branch_code',
     ];
 
-    expect(() => validator.validate(headers)).not.toThrow();
+    expect(() => validator.validate(headers, EXPECTED_HEADERS)).not.toThrow();
   });
 
   it('rejects a missing required header', () => {
@@ -66,7 +76,9 @@ describe('ImportHeaderValidator', () => {
       'gender',
     ];
 
-    expect(() => validator.validate(headers)).toThrow(BadRequestException);
+    expect(() => validator.validate(headers, EXPECTED_HEADERS)).toThrow(
+      BadRequestException,
+    );
   });
 
   it('rejects a duplicate header', () => {
@@ -81,7 +93,9 @@ describe('ImportHeaderValidator', () => {
       'branch_code',
     ];
 
-    expect(() => validator.validate(headers)).toThrow(BadRequestException);
+    expect(() => validator.validate(headers, EXPECTED_HEADERS)).toThrow(
+      BadRequestException,
+    );
   });
 
   it('rejects an unexpected header', () => {
@@ -96,7 +110,9 @@ describe('ImportHeaderValidator', () => {
       'abc',
     ];
 
-    expect(() => validator.validate(headers)).toThrow(BadRequestException);
+    expect(() => validator.validate(headers, EXPECTED_HEADERS)).toThrow(
+      BadRequestException,
+    );
   });
 
   it('ignores empty trailing header cells', () => {
@@ -112,6 +128,6 @@ describe('ImportHeaderValidator', () => {
       '',
     ];
 
-    expect(() => validator.validate(headers)).not.toThrow();
+    expect(() => validator.validate(headers, EXPECTED_HEADERS)).not.toThrow();
   });
 });

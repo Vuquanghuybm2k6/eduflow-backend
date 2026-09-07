@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { ImportParsedRow } from '../types/import.types';
-import { ImportRowValidator } from './import-row.validator';
+import { ImportParsedRow } from '../../imports/types/import.types';
+import { StudentImportRowValidator } from './student-import.validator';
 
 function row(
   rowNumber: number,
@@ -10,15 +10,15 @@ function row(
   return { rowNumber, data };
 }
 
-describe('ImportRowValidator', () => {
-  let validator: ImportRowValidator;
+describe('StudentImportRowValidator', () => {
+  let validator: StudentImportRowValidator;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ImportRowValidator],
+      providers: [StudentImportRowValidator],
     }).compile();
 
-    validator = module.get(ImportRowValidator);
+    validator = module.get(StudentImportRowValidator);
   });
 
   it('marks a fully valid row as valid and normalizes values', () => {

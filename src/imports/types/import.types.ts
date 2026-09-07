@@ -1,12 +1,3 @@
-export type StudentImportField =
-  | 'student_code'
-  | 'full_name'
-  | 'email'
-  | 'phone'
-  | 'date_of_birth'
-  | 'gender'
-  | 'branch_code';
-
 export interface ImportParsedRow {
   rowNumber: number;
   data: Record<string, unknown>;
@@ -50,11 +41,4 @@ export interface ImportJobResult {
   success: number;
   failed: number;
   rows: ImportJobRowResult[];
-}
-
-export interface StudentImportMeta {
-  headers: string[];
-  headerLabels: Record<string, string>;
-  maxFileSizeBytes: number;
-  allowedExtensions: string[];
 }
