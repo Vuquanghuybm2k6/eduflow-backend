@@ -20,6 +20,18 @@ const STUDENT_HEADERS = [
   'branch_code',
 ];
 
+const TEACHER_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const TEACHER_HEADERS = [
+  'email',
+  'full_name',
+  'teacher_code',
+  'specialization',
+  'qualification',
+  'bio',
+  'hire_date',
+  'branch_codes',
+];
+
 function makeFile(
   overrides: Partial<Express.Multer.File> = {},
 ): Express.Multer.File {
@@ -53,9 +65,10 @@ describe('ImportFileValidator', () => {
   async function buildXlsxBuffer(
     headers: string[] = STUDENT_HEADERS,
     rows: unknown[][] = [],
+    sheetName = 'Students',
   ): Promise<Buffer> {
     const workbook = service.createWorkbook();
-    const worksheet = service.addWorksheet(workbook, 'Students');
+    const worksheet = service.addWorksheet(workbook, sheetName);
 
     if (headers.length > 0) {
       service.writeHeaders(worksheet, headers);
@@ -182,5 +195,61 @@ describe('ImportFileValidator', () => {
     );
 
     expect(worksheet.name).toBe('Students');
+  });
+
+  it('rejects a file larger than the custom max file size', async () => {
+    const buffer = Buffer.alloc(TEACHER_MAX_FILE_SIZE_BYTES + 1);
+
+    await expect(
+      validator.validate(makeFile({ buffer, size: buffer.length }), {
+        maxFileSizeBytes: TEACHER_MAX_FILE_SIZE_BYTES,
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects a file with more rows than the custom max rows', async () => {
+    const rows: unknown[][] = Array.from({ length: 6 }, (_, i) => [
+      `T${i}`,
+      `Teacher ${i}`,
+      `t${i}@gmail.com`,
+      'GV001',
+      '',
+      '',
+      '',
+      '',
+      'BR001',
+    ]);
+    const buffer = await buildXlsxBuffer(TEACHER_HEADERS, rows);
+
+    await expect(
+      validator.validate(makeFile({ buffer, size: buffer.length }), {
+        maxRows: 5,
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('returns the named worksheet when a sheetName is provided', async () => {
+    const buffer = await buildXlsxBuffer(
+      TEACHER_HEADERS,
+      [['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', 'BR001']],
+      'Teachers',
+    );
+
+    const worksheet = await validator.validate(
+      makeFile({ buffer, size: buffer.length }),
+      { sheetName: 'Teachers' },
+    );
+
+    expect(worksheet.name).toBe('Teachers');
+  });
+
+  it('rejects a workbook that has no matching worksheet for the sheetName', async () => {
+    const buffer = await buildXlsxBuffer(TEACHER_HEADERS, [], 'Sheet1');
+
+    await expect(
+      validator.validate(makeFile({ buffer, size: buffer.length }), {
+        sheetName: 'Teachers',
+      }),
+    ).rejects.toThrow(BadRequestException);
   });
 });

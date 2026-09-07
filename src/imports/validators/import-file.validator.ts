@@ -11,20 +11,32 @@ import {
 export const IMPORT_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 export const IMPORT_MAX_ROWS = 10000;
 
+export interface ImportFileValidatorOptions {
+  maxFileSizeBytes?: number;
+  maxRows?: number;
+  sheetName?: string;
+}
+
 @Injectable()
 export class ImportFileValidator {
   constructor(private readonly excelService: ExcelService) {}
 
   async validate(
     file: Express.Multer.File | undefined,
+    options: ImportFileValidatorOptions = {},
   ): Promise<ExcelJS.Worksheet> {
+    const maxFileSizeBytes =
+      options.maxFileSizeBytes ?? IMPORT_MAX_FILE_SIZE_BYTES;
+    const maxRows = options.maxRows ?? IMPORT_MAX_ROWS;
+    const sheetName = options.sheetName;
+
     if (!file) {
       throw new BadRequestException('Không có file nào được tải lên');
     }
 
-    if (file.size > IMPORT_MAX_FILE_SIZE_BYTES) {
+    if (file.size > maxFileSizeBytes) {
       throw new BadRequestException(
-        `File vượt quá giới hạn ${IMPORT_MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`,
+        `File vượt quá giới hạn ${maxFileSizeBytes / (1024 * 1024)} MB`,
       );
     }
 
@@ -51,9 +63,15 @@ export class ImportFileValidator {
     let worksheet: ExcelJS.Worksheet;
 
     try {
-      worksheet = this.excelService.getWorksheet(workbook);
+      worksheet = sheetName
+        ? this.excelService.getWorksheet(workbook, sheetName)
+        : this.excelService.getWorksheet(workbook);
     } catch {
-      throw new BadRequestException('File Excel không chứa worksheet nào');
+      throw new BadRequestException(
+        sheetName
+          ? `Worksheet "${sheetName}" không tồn tại trong file Excel`
+          : 'File Excel không chứa worksheet nào',
+      );
     }
 
     const headers = this.excelService.getHeaders(worksheet);
@@ -66,9 +84,9 @@ export class ImportFileValidator {
       throw new BadRequestException('File Excel không có dữ liệu');
     }
 
-    if (rows.length > IMPORT_MAX_ROWS) {
+    if (rows.length > maxRows) {
       throw new BadRequestException(
-        `File vượt quá giới hạn ${IMPORT_MAX_ROWS} dòng dữ liệu`,
+        `File vượt quá giới hạn ${maxRows} dòng dữ liệu`,
       );
     }
 

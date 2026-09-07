@@ -15,6 +15,15 @@ import {
   StudentImportRowValidator,
 } from '../students/import/student-import.validator';
 import { StudentImportExecutor } from '../students/import/student-import.executor';
+import {
+  TEACHER_IMPORT_HEADER_LABELS,
+  TEACHER_IMPORT_HEADERS,
+  TEACHER_IMPORT_MAX_FILE_SIZE_BYTES,
+} from '../teachers/import/teacher-import.constants';
+import {
+  TeacherImportBusinessValidator,
+  TeacherImportRowValidator,
+} from '../teachers/import/teacher-import.validator';
 import { ImportJob } from './entities/import-job.entity';
 import { ImportJobRow } from './entities/import-job-row.entity';
 import { ImportFileValidator } from './validators/import-file.validator';
@@ -49,6 +58,7 @@ describe('ImportsService', () => {
   let service: ImportsService;
   let excelService: ExcelService;
   let businessValidator: { addBusinessErrors: jest.Mock };
+  let teacherBusinessValidator: { addBusinessErrors: jest.Mock };
   let queryBuilderMock: {
     innerJoinAndSelect: jest.Mock;
     where: jest.Mock;
@@ -84,6 +94,9 @@ describe('ImportsService', () => {
     businessValidator = {
       addBusinessErrors: jest.fn().mockResolvedValue(undefined),
     };
+    teacherBusinessValidator = {
+      addBusinessErrors: jest.fn().mockResolvedValue(undefined),
+    };
     queryBuilderMock = {
       innerJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
@@ -109,13 +122,13 @@ describe('ImportsService', () => {
         .mockImplementation((jobArg) =>
           Promise.resolve({ ...jobArg, id: 'job-1' }),
         ),
-      create: jest.fn().mockImplementation((arg) => arg),
+      create: jest.fn((arg: unknown): unknown => arg),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
       findOne: jest.fn().mockResolvedValue(null),
     };
     importJobRowsRepository = {
       save: jest.fn().mockImplementation((rows) => Promise.resolve(rows)),
-      create: jest.fn().mockImplementation((arg) => arg),
+      create: jest.fn((arg: unknown): unknown => arg),
       find: jest.fn().mockResolvedValue([]),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
@@ -130,8 +143,16 @@ describe('ImportsService', () => {
         ImportFileValidator,
         ImportHeaderValidator,
         StudentImportRowValidator,
-        { provide: StudentImportBusinessValidator, useValue: businessValidator },
+        {
+          provide: StudentImportBusinessValidator,
+          useValue: businessValidator,
+        },
         { provide: StudentImportExecutor, useValue: studentImportExecutor },
+        TeacherImportRowValidator,
+        {
+          provide: TeacherImportBusinessValidator,
+          useValue: teacherBusinessValidator,
+        },
         {
           provide: getRepositoryToken(Membership),
           useValue: membershipsRepository,
@@ -157,6 +178,18 @@ describe('ImportsService', () => {
     const workbook = excelService.createWorkbook();
     const worksheet = excelService.addWorksheet(workbook, 'Students');
     excelService.writeHeaders(worksheet, headers);
+    excelService.writeRows(worksheet, rows);
+    return excelService.writeWorkbook(workbook);
+  }
+
+  async function buildTeacherXlsx(
+    headers: readonly string[] = TEACHER_IMPORT_HEADERS,
+    rows: unknown[][] = [],
+    sheetName = 'Teachers',
+  ): Promise<Buffer> {
+    const workbook = excelService.createWorkbook();
+    const worksheet = excelService.addWorksheet(workbook, sheetName);
+    excelService.writeHeaders(worksheet, [...headers]);
     excelService.writeRows(worksheet, rows);
     return excelService.writeWorkbook(workbook);
   }
@@ -379,8 +412,261 @@ describe('ImportsService', () => {
     );
   });
 
+  describe('teacher import preview', () => {
+    it('returns teacher import metadata from the shared constants', () => {
+      const meta = service.getTeacherImportMeta();
+
+      expect(meta.headers).toEqual(TEACHER_IMPORT_HEADERS);
+      expect(meta.headerLabels).toEqual(TEACHER_IMPORT_HEADER_LABELS);
+      expect(meta.maxFileSizeBytes).toBe(TEACHER_IMPORT_MAX_FILE_SIZE_BYTES);
+      expect(meta.allowedExtensions).toEqual(['.xlsx']);
+    });
+
+    it('returns a preview with valid rows for a correct file', async () => {
+      const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
+        [
+          'teacher1@gmail.com',
+          'Nguyen Van A',
+          'GV001',
+          'Mathematics',
+          'Master',
+          'Bio A',
+          '2025-01-10',
+          'BR001, BR002',
+        ],
+        ['teacher2@gmail.com', 'Tran Van B', 'GV002', '', '', '', '', 'BR001'],
+      ]);
+
+      const preview = await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      );
+
+      expect(preview.total).toBe(2);
+      expect(preview.valid).toBe(2);
+      expect(preview.invalid).toBe(0);
+      expect(preview.rows.map((item) => item.rowNumber)).toEqual([2, 3]);
+      expect(preview.rows[0].data.branch_codes).toEqual(['BR001', 'BR002']);
+    });
+
+    it('marks duplicate rows inside the file as invalid', async () => {
+      const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
+        [
+          'teacher1@gmail.com',
+          'Nguyen Van A',
+          'GV001',
+          '',
+          '',
+          '',
+          '',
+          'BR001',
+        ],
+        [
+          'teacher2@gmail.com',
+          'Nguyen Van C',
+          'GV001',
+          '',
+          '',
+          '',
+          '',
+          'BR001',
+        ],
+      ]);
+
+      const preview = await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      );
+
+      expect(preview.total).toBe(2);
+      expect(preview.valid).toBe(0);
+      expect(preview.invalid).toBe(2);
+      expect(preview.rows[0].status).toBe('INVALID');
+      expect(preview.rows[1].status).toBe('INVALID');
+    });
+
+    it('ignores unknown columns while still validating known ones', async () => {
+      const headers = [...TEACHER_IMPORT_HEADERS, 'phone_number', 'abc'];
+      const buffer = await buildTeacherXlsx(headers, [
+        [
+          'teacher1@gmail.com',
+          'Nguyen Van A',
+          'GV001',
+          '',
+          '',
+          '',
+          '',
+          'BR001',
+          '0901234567',
+          'x',
+        ],
+      ]);
+
+      const preview = await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      );
+
+      expect(preview.total).toBe(1);
+      expect(preview.valid).toBe(1);
+    });
+
+    it('accepts reordered columns with a blank header column', async () => {
+      const headers = [
+        'full_name',
+        '',
+        'email',
+        'teacher_code',
+        'specialization',
+        'qualification',
+        'bio',
+        'hire_date',
+        'branch_codes',
+      ];
+      const buffer = await buildTeacherXlsx(headers, [
+        [
+          'Nguyen Van A',
+          '',
+          'teacher1@gmail.com',
+          'GV001',
+          'Mathematics',
+          '',
+          '',
+          '2025-01-10',
+          'BR001, BR002',
+        ],
+      ]);
+
+      const preview = await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      );
+
+      expect(preview.total).toBe(1);
+      expect(preview.valid).toBe(1);
+      expect(preview.rows[0].data.full_name).toBe('Nguyen Van A');
+      expect(preview.rows[0].data.email).toBe('teacher1@gmail.com');
+      expect(preview.rows[0].data.teacher_code).toBe('GV001');
+      expect(preview.rows[0].data.specialization).toBe('Mathematics');
+      expect(preview.rows[0].data.hire_date).toBe('2025-01-10');
+      expect(preview.rows[0].data.branch_codes).toEqual(['BR001', 'BR002']);
+    });
+
+    it('rejects a file missing a required column', async () => {
+      const headers = [
+        'email',
+        'full_name',
+        'specialization',
+        'qualification',
+        'bio',
+        'hire_date',
+        'branch_codes',
+      ];
+      const buffer = await buildTeacherXlsx(headers, [
+        ['a@gmail.com', 'Nguyen A', '', '', '', '', 'BR001'],
+      ]);
+
+      await expect(
+        service.previewTeacherImport(
+          makeFile({ buffer, size: buffer.length }),
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects a file without the "Teachers" worksheet', async () => {
+      const buffer = await buildTeacherXlsx(
+        TEACHER_IMPORT_HEADERS,
+        [],
+        'Sheet1',
+      );
+
+      await expect(
+        service.previewTeacherImport(
+          makeFile({ buffer, size: buffer.length }),
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects when no file is provided', async () => {
+      await expect(
+        service.previewTeacherImport(undefined, 'user-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws ForbiddenException when the user has no active membership', async () => {
+      queryBuilderMock.getOne.mockResolvedValue(null);
+
+      const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
+        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', 'BR001'],
+      ]);
+
+      await expect(
+        service.previewTeacherImport(
+          makeFile({ buffer, size: buffer.length }),
+          'user-1',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('passes the resolved organizationId to the teacher business validator', async () => {
+      const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
+        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', 'BR001'],
+      ]);
+
+      await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      );
+
+      expect(teacherBusinessValidator.addBusinessErrors).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(teacherBusinessValidator.addBusinessErrors).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ rowNumber: 2 })]),
+        'org-1',
+      );
+    });
+
+    it('respects a requested organizationId', async () => {
+      const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
+        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', 'BR001'],
+      ]);
+
+      await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+        { organizationId: 'org-2' },
+      );
+
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('membership.organizationId = :organizationId'),
+        { organizationId: 'org-2' },
+      );
+    });
+
+    it('does not persist any import job during preview', async () => {
+      const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
+        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', 'BR001'],
+      ]);
+
+      const preview = await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      );
+
+      expect(preview).not.toHaveProperty('importJobId');
+    });
+  });
+
   describe('confirmStudentImport', () => {
-    const confirmedJob = { id: 'job-1', organizationId: 'org-1', status: 'PREVIEW', totalRows: 2 };
+    const confirmedJob = {
+      id: 'job-1',
+      organizationId: 'org-1',
+      status: 'PREVIEW',
+      totalRows: 2,
+    };
 
     it('imports valid rows and reports partial success', async () => {
       importJobsRepository.findOne.mockResolvedValue(confirmedJob);
@@ -433,7 +719,9 @@ describe('ImportsService', () => {
         'row-2',
         expect.objectContaining({
           status: 'FAILED',
-          errors: [{ field: 'email', message: 'Email "dup@gmail.com" already exists' }],
+          errors: [
+            { field: 'email', message: 'Email "dup@gmail.com" already exists' },
+          ],
         }),
       );
       expect(importJobsRepository.update).toHaveBeenCalledWith(

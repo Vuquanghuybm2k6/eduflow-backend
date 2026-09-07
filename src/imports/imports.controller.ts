@@ -13,11 +13,13 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ImportsService } from './imports.service';
-import {
-  ImportJobResult,
-  ImportPreview,
-} from './types/import.types';
+import { ImportJobResult, ImportPreview } from './types/import.types';
 import type { StudentImportMeta } from '../students/import/student-import.types';
+import { TEACHER_IMPORT_MAX_FILE_SIZE_BYTES } from '../teachers/import/teacher-import.constants';
+import type {
+  TeacherImportMeta,
+  TeacherImportPreview,
+} from '../teachers/import/teacher-import.types';
 import { IMPORT_MAX_FILE_SIZE_BYTES } from './validators/import-file.validator';
 
 @UseGuards(JwtAuthGuard)
@@ -32,7 +34,9 @@ export class ImportsController {
 
   @Post('students/preview')
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: IMPORT_MAX_FILE_SIZE_BYTES } }),
+    FileInterceptor('file', {
+      limits: { fileSize: IMPORT_MAX_FILE_SIZE_BYTES },
+    }),
   )
   previewStudentImport(
     @CurrentUser('userId') userId: string,
@@ -51,6 +55,27 @@ export class ImportsController {
     @Query('organizationId') organizationId?: string,
   ): Promise<ImportJobResult> {
     return this.importsService.confirmStudentImport(importJobId, userId, {
+      organizationId,
+    });
+  }
+
+  @Get('teachers/meta')
+  getTeacherImportMeta(): TeacherImportMeta {
+    return this.importsService.getTeacherImportMeta();
+  }
+
+  @Post('teachers/preview')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: TEACHER_IMPORT_MAX_FILE_SIZE_BYTES },
+    }),
+  )
+  previewTeacherImport(
+    @CurrentUser('userId') userId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Query('organizationId') organizationId?: string,
+  ): Promise<TeacherImportPreview> {
+    return this.importsService.previewTeacherImport(file, userId, {
       organizationId,
     });
   }

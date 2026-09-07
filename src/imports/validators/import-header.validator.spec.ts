@@ -115,6 +115,96 @@ describe('ImportHeaderValidator', () => {
     );
   });
 
+  it('ignores unexpected headers when ignoreUnexpected is enabled', () => {
+    const headers = [
+      'student_code',
+      'full_name',
+      'email',
+      'phone',
+      'date_of_birth',
+      'gender',
+      'branch_code',
+      'abc',
+    ];
+
+    expect(() =>
+      validator.validate(headers, EXPECTED_HEADERS, {
+        ignoreUnexpected: true,
+      }),
+    ).not.toThrow();
+  });
+
+  it('still rejects a missing required header when ignoreUnexpected is enabled', () => {
+    const headers = [
+      'full_name',
+      'email',
+      'phone',
+      'date_of_birth',
+      'gender',
+      'branch_code',
+      'extra',
+    ];
+
+    expect(() =>
+      validator.validate(headers, EXPECTED_HEADERS, {
+        ignoreUnexpected: true,
+      }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('still rejects a duplicate header when ignoreUnexpected is enabled', () => {
+    const headers = [
+      'student_code',
+      'student_code',
+      'full_name',
+      'email',
+      'phone',
+      'date_of_birth',
+      'gender',
+      'branch_code',
+    ];
+
+    expect(() =>
+      validator.validate(headers, EXPECTED_HEADERS, {
+        ignoreUnexpected: true,
+      }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('ignores an empty header column in the middle', () => {
+    const headers = [
+      'student_code',
+      'full_name',
+      '',
+      'email',
+      'phone',
+      'date_of_birth',
+      'gender',
+      'branch_code',
+    ];
+
+    expect(() => validator.validate(headers, EXPECTED_HEADERS)).not.toThrow();
+  });
+
+  it('ignores an empty header column when ignoreUnexpected is enabled', () => {
+    const headers = [
+      'student_code',
+      'full_name',
+      'email',
+      '',
+      'phone',
+      'date_of_birth',
+      'gender',
+      'branch_code',
+    ];
+
+    expect(() =>
+      validator.validate(headers, EXPECTED_HEADERS, {
+        ignoreUnexpected: true,
+      }),
+    ).not.toThrow();
+  });
+
   it('ignores empty trailing header cells', () => {
     const headers = [
       'student_code',

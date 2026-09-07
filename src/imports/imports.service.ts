@@ -24,6 +24,22 @@ import {
   StudentImportBusinessValidator,
   StudentImportRowValidator,
 } from '../students/import/student-import.validator';
+import {
+  TEACHER_IMPORT_HEADER_LABELS,
+  TEACHER_IMPORT_HEADERS,
+  TEACHER_IMPORT_MAX_FILE_SIZE_BYTES,
+  TEACHER_IMPORT_MAX_ROWS,
+  TEACHER_IMPORT_WORKSHEET_NAME,
+} from '../teachers/import/teacher-import.constants';
+import type {
+  TeacherImportMeta,
+  TeacherImportPreview,
+  TeacherImportRowResult,
+} from '../teachers/import/teacher-import.types';
+import {
+  TeacherImportBusinessValidator,
+  TeacherImportRowValidator,
+} from '../teachers/import/teacher-import.validator';
 import { ImportJob, ImportJobStatus } from './entities/import-job.entity';
 import {
   ImportJobRow,
@@ -55,6 +71,8 @@ export class ImportsService {
     private readonly rowValidator: StudentImportRowValidator,
     private readonly businessValidator: StudentImportBusinessValidator,
     private readonly studentImportExecutor: StudentImportExecutor,
+    private readonly teacherRowValidator: TeacherImportRowValidator,
+    private readonly teacherBusinessValidator: TeacherImportBusinessValidator,
     @InjectRepository(Membership)
     private readonly membershipsRepository: Repository<Membership>,
     @InjectRepository(ImportJob)
@@ -109,6 +127,46 @@ export class ImportsService {
     );
 
     return this.buildPreview(importJob.id, results);
+  }
+
+  getTeacherImportMeta(): TeacherImportMeta {
+    return {
+      headers: [...TEACHER_IMPORT_HEADERS],
+      headerLabels: { ...TEACHER_IMPORT_HEADER_LABELS },
+      maxFileSizeBytes: TEACHER_IMPORT_MAX_FILE_SIZE_BYTES,
+      allowedExtensions: [EXCEL_EXTENSION],
+    };
+  }
+
+  async previewTeacherImport(
+    file: Express.Multer.File | undefined,
+    userId: string,
+    options: OrgContextOptions = {},
+  ): Promise<TeacherImportPreview> {
+    const organizationId = await this.resolveOrganizationId(
+      userId,
+      options.organizationId,
+    );
+
+    const worksheet = await this.fileValidator.validate(file, {
+      maxFileSizeBytes: TEACHER_IMPORT_MAX_FILE_SIZE_BYTES,
+      maxRows: TEACHER_IMPORT_MAX_ROWS,
+      sheetName: TEACHER_IMPORT_WORKSHEET_NAME,
+    });
+    const headers = this.excelService.getHeaders(worksheet);
+    this.headerValidator.validate(headers, TEACHER_IMPORT_HEADERS, {
+      ignoreUnexpected: true,
+    });
+
+    const excelRows = this.excelService.getRows(worksheet);
+    const parsedRows = this.parseRows(excelRows, headers);
+    const results = this.teacherRowValidator.validateRows(parsedRows);
+    await this.teacherBusinessValidator.addBusinessErrors(
+      results,
+      organizationId,
+    );
+
+    return this.buildTeacherPreview(results);
   }
 
   async confirmStudentImport(
@@ -374,6 +432,20 @@ export class ImportsService {
       totalRows,
       validRows,
       invalidRows: totalRows - validRows,
+      rows: results,
+    };
+  }
+
+  private buildTeacherPreview(
+    results: TeacherImportRowResult[],
+  ): TeacherImportPreview {
+    const total = results.length;
+    const valid = results.filter((row) => row.status === 'VALID').length;
+
+    return {
+      total,
+      valid,
+      invalid: total - valid,
       rows: results,
     };
   }

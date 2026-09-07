@@ -2,11 +2,16 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { normalizeHeader } from '../../common/excel/excel.utils';
 
+export interface ImportHeaderValidatorOptions {
+  ignoreUnexpected?: boolean;
+}
+
 @Injectable()
 export class ImportHeaderValidator {
   validate(
     headers: string[],
     expectedHeaders: readonly string[],
+    options: ImportHeaderValidatorOptions = {},
   ): void {
     const normalized = headers.map((header) =>
       normalizeHeader(header).toLowerCase(),
@@ -23,14 +28,16 @@ export class ImportHeaderValidator {
       );
     }
 
-    const unexpected = present.filter(
-      (header) => !expectedHeaders.includes(header),
-    );
-
-    if (unexpected.length > 0) {
-      throw new BadRequestException(
-        `Cột không hợp lệ: ${unexpected.join(', ')}`,
+    if (!options.ignoreUnexpected) {
+      const unexpected = present.filter(
+        (header) => !expectedHeaders.includes(header),
       );
+
+      if (unexpected.length > 0) {
+        throw new BadRequestException(
+          `Cột không hợp lệ: ${unexpected.join(', ')}`,
+        );
+      }
     }
 
     const seen = new Set<string>();
