@@ -26,8 +26,28 @@ export interface ImportRowResult {
 }
 
 export interface ImportPreview {
+  importJobId: string;
   totalRows: number;
   validRows: number;
   invalidRows: number;
   rows: ImportRowResult[];
+}
+
+export enum ImportJobRowOutcome {
+  SUCCESS = 'SUCCESS',
+  FAILED = 'FAILED',
+}
+
+export interface ImportJobRowResult {
+  rowNumber: number;
+  status: ImportJobRowOutcome;
+  errors: Array<{ field: string; message: string }>;
+}
+
+export interface ImportJobResult {
+  importJobId: string;
+  total: number;
+  success: number;
+  failed: number;
+  rows: ImportJobRowResult[];
 }

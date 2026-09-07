@@ -18,6 +18,8 @@ import { Enrollment } from './enrollments/entities/enrollment.entity';
 import { Schedule } from './schedules/entities/schedule.entity';
 import { RefreshToken } from './auth/entities/refresh-token.entity';
 import { VerificationToken } from './auth/entities/verification-token.entity';
+import { ImportJob } from './imports/entities/import-job.entity';
+import { ImportJobRow } from './imports/entities/import-job-row.entity';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -38,6 +40,8 @@ export const AppDataSource = new DataSource({
     Schedule,
     RefreshToken,
     VerificationToken,
+    ImportJob,
+    ImportJobRow,
   ],
   migrations: ['src/migrations/*.ts'],
   subscribers: [UuidValueGeneratorSubscriber],

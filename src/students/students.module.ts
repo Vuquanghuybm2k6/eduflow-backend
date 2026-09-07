@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StudentsService } from './students.service';
 import { StudentsController } from './students.controller';
+import { StudentImportExecutor } from './import/student-import.executor';
 import { Student } from './entities/student.entity';
 import { User } from '../users/entities/user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
@@ -14,7 +15,7 @@ import { AuthModule } from '../auth/auth.module';
     AuthModule,
   ],
   controllers: [StudentsController],
-  providers: [StudentsService],
-  exports: [StudentsService],
+  providers: [StudentsService, StudentImportExecutor],
+  exports: [StudentsService, StudentImportExecutor],
 })
 export class StudentsModule {}

@@ -1,10 +1,18 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { ExcelService } from '../common/excel/excel.service';
 import { EXCEL_MIME_TYPE } from '../common/excel/excel.constants';
 import { Membership } from '../memberships/entities/membership.entity';
+import { StudentImportExecutor } from '../students/import/student-import.executor';
+import { ImportJob } from './entities/import-job.entity';
+import { ImportJobRow } from './entities/import-job-row.entity';
 import { ImportBusinessValidator } from './validators/import-business.validator';
 import { ImportFileValidator } from './validators/import-file.validator';
 import { ImportHeaderValidator } from './validators/import-header.validator';
@@ -48,7 +56,23 @@ describe('ImportsService', () => {
     limit: jest.Mock;
     getOne: jest.Mock;
   };
-  let membershipsRepository: { createQueryBuilder: jest.Mock };
+  let membershipsRepository: {
+    createQueryBuilder: jest.Mock;
+    findOne: jest.Mock;
+  };
+  let importJobsRepository: {
+    save: jest.Mock;
+    create: jest.Mock;
+    update: jest.Mock;
+    findOne: jest.Mock;
+  };
+  let importJobRowsRepository: {
+    save: jest.Mock;
+    create: jest.Mock;
+    find: jest.Mock;
+    update: jest.Mock;
+  };
+  let studentImportExecutor: { execute: jest.Mock };
 
   beforeAll(() => {
     excelService = new ExcelService();
@@ -69,6 +93,32 @@ describe('ImportsService', () => {
     };
     membershipsRepository = {
       createQueryBuilder: jest.fn().mockReturnValue(queryBuilderMock),
+      findOne: jest.fn().mockResolvedValue({
+        id: 'm1',
+        userId: 'user-1',
+        organizationId: 'org-1',
+        status: 'ACTIVE',
+        role: { name: 'Owner', id: 'role-owner' },
+      }),
+    };
+    importJobsRepository = {
+      save: jest
+        .fn()
+        .mockImplementation((jobArg) =>
+          Promise.resolve({ ...jobArg, id: 'job-1' }),
+        ),
+      create: jest.fn().mockImplementation((arg) => arg),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+    importJobRowsRepository = {
+      save: jest.fn().mockImplementation((rows) => Promise.resolve(rows)),
+      create: jest.fn().mockImplementation((arg) => arg),
+      find: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+    studentImportExecutor = {
+      execute: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -79,9 +129,18 @@ describe('ImportsService', () => {
         ImportHeaderValidator,
         ImportRowValidator,
         { provide: ImportBusinessValidator, useValue: businessValidator },
+        { provide: StudentImportExecutor, useValue: studentImportExecutor },
         {
           provide: getRepositoryToken(Membership),
           useValue: membershipsRepository,
+        },
+        {
+          provide: getRepositoryToken(ImportJob),
+          useValue: importJobsRepository,
+        },
+        {
+          provide: getRepositoryToken(ImportJobRow),
+          useValue: importJobRowsRepository,
         },
       ],
     }).compile();
@@ -299,5 +358,111 @@ describe('ImportsService', () => {
       expect.stringContaining('membership.organizationId = :organizationId'),
       { organizationId: 'org-2' },
     );
+  });
+
+  describe('confirmStudentImport', () => {
+    const confirmedJob = { id: 'job-1', organizationId: 'org-1', status: 'PREVIEW', totalRows: 2 };
+
+    it('imports valid rows and reports partial success', async () => {
+      importJobsRepository.findOne.mockResolvedValue(confirmedJob);
+      importJobRowsRepository.find.mockResolvedValue([
+        {
+          id: 'row-1',
+          importJobId: 'job-1',
+          rowNumber: 2,
+          normalizedData: {
+            student_code: 'ST001',
+            email: 'a@gmail.com',
+            full_name: 'Nguyen A',
+            branch_code: 'HN01',
+          },
+          status: 'PENDING',
+        },
+        {
+          id: 'row-2',
+          importJobId: 'job-1',
+          rowNumber: 3,
+          normalizedData: {
+            student_code: 'ST002',
+            email: 'dup@gmail.com',
+            full_name: 'Nguyen B',
+            branch_code: 'HN01',
+          },
+          status: 'PENDING',
+        },
+      ]);
+      studentImportExecutor.execute
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new ConflictException('Email "dup@gmail.com" already exists'),
+        );
+
+      const result = await service.confirmStudentImport('job-1', 'user-1');
+
+      expect(result.total).toBe(2);
+      expect(result.success).toBe(1);
+      expect(result.failed).toBe(1);
+      expect(result.rows.find((r) => r.rowNumber === 2)?.status).toBe(
+        'SUCCESS',
+      );
+      expect(result.rows.find((r) => r.rowNumber === 3)?.status).toBe('FAILED');
+      expect(importJobRowsRepository.update).toHaveBeenCalledWith(
+        'row-1',
+        expect.objectContaining({ status: 'SUCCESS' }),
+      );
+      expect(importJobRowsRepository.update).toHaveBeenCalledWith(
+        'row-2',
+        expect.objectContaining({
+          status: 'FAILED',
+          errors: [{ field: 'email', message: 'Email "dup@gmail.com" already exists' }],
+        }),
+      );
+      expect(importJobsRepository.update).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({
+          status: 'COMPLETED',
+          successRows: 1,
+          failedRows: 1,
+        }),
+      );
+    });
+
+    it('throws NotFound when the job belongs to another organization', async () => {
+      importJobsRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.confirmStudentImport('job-1', 'user-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejects a second confirm when the job is already processing', async () => {
+      importJobsRepository.findOne.mockResolvedValue({
+        ...confirmedJob,
+        status: 'PROCESSING',
+      });
+
+      await expect(
+        service.confirmStudentImport('job-1', 'user-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws when the job was already claimed by another request', async () => {
+      importJobsRepository.findOne.mockResolvedValue(confirmedJob);
+      importJobsRepository.update.mockResolvedValueOnce({ affected: 0 });
+
+      await expect(
+        service.confirmStudentImport('job-1', 'user-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('returns zero success when no valid rows exist', async () => {
+      importJobsRepository.findOne.mockResolvedValue(confirmedJob);
+      importJobRowsRepository.find.mockResolvedValue([]);
+
+      const result = await service.confirmStudentImport('job-1', 'user-1');
+
+      expect(result.success).toBe(0);
+      expect(result.failed).toBe(0);
+    });
   });
 });
