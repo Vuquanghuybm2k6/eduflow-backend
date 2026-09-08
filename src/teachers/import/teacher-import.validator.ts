@@ -127,7 +127,7 @@ export class TeacherImportRowValidator {
     }
 
     if (!TEACHER_IMPORT_EMAIL_PATTERN.test(email)) {
-      errors.push(errorOf('email', 'Email không hợp lệ'));
+      errors.push(errorOf('email', 'Email phải có đuôi @gmail.com'));
     }
   }
 

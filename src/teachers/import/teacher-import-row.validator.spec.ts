@@ -138,6 +138,40 @@ describe('TeacherImportRowValidator', () => {
     );
   });
 
+  it('rejects an email that is not a gmail address', () => {
+    const results = validator.validateRows([
+      row(2, {
+        email: 'invalid-email@gbgfd.com',
+        full_name: 'Nguyen Van A',
+        teacher_code: 'GV001',
+        branch_codes: 'BR001',
+      }),
+    ]);
+
+    expect(results[0].status).toBe('INVALID');
+    expect(results[0].errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'email',
+          message: 'Email phải có đuôi @gmail.com',
+        }),
+      ]),
+    );
+  });
+
+  it('accepts a gmail address case-insensitively', () => {
+    const results = validator.validateRows([
+      row(2, {
+        email: ' Teacher@Gmail.COM ',
+        full_name: 'Nguyen Van A',
+        teacher_code: 'GV001',
+        branch_codes: 'BR001',
+      }),
+    ]);
+
+    expect(results[0].status).toBe('VALID');
+  });
+
   it('rejects an invalid hire_date', () => {
     const results = validator.validateRows([
       row(2, {

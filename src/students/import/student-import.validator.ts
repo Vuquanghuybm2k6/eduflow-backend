@@ -11,7 +11,7 @@ import {
   ImportRowResult,
 } from '../../imports/types/import.types';
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@gmail\.com$/i;
 const PHONE_PATTERN = /^[0-9+\-() ]{6,20}$/;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -131,7 +131,7 @@ export class StudentImportRowValidator {
     }
 
     if (!EMAIL_PATTERN.test(value)) {
-      errors.push(errorOf(rowNumber, 'email', 'Email không hợp lệ'));
+      errors.push(errorOf(rowNumber, 'email', 'Email phải có đuôi @gmail.com'));
     }
   }
 

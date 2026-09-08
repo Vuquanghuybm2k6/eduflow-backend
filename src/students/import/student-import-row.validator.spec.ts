@@ -91,6 +91,37 @@ describe('StudentImportRowValidator', () => {
     );
   });
 
+  it('rejects an email that is not a gmail address', () => {
+    const results = validator.validateRows([
+      row(2, {
+        student_code: 'ST001',
+        full_name: 'Nguyen Van A',
+        email: 'invalid-email@gbgfd.com',
+        branch_code: 'HN01',
+      }),
+    ]);
+
+    expect(results[0].valid).toBe(false);
+    expect(results[0].errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'email', message: 'Email phải có đuôi @gmail.com' }),
+      ]),
+    );
+  });
+
+  it('accepts a gmail address case-insensitively', () => {
+    const results = validator.validateRows([
+      row(2, {
+        student_code: 'ST001',
+        full_name: 'Nguyen Van A',
+        email: 'HUY@GMAIL.COM',
+        branch_code: 'HN01',
+      }),
+    ]);
+
+    expect(results[0].valid).toBe(true);
+  });
+
   it('rejects invalid dates such as 9999-99-99 and 2006-02-30', () => {
     const results = validator.validateRows([
       row(2, {

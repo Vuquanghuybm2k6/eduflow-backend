@@ -36,6 +36,6 @@ export const TEACHER_IMPORT_MAX_QUALIFICATION_LENGTH = 100;
 
 export const TEACHER_IMPORT_MAX_BIO_LENGTH = 2000;
 
-export const TEACHER_IMPORT_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const TEACHER_IMPORT_EMAIL_PATTERN = /^[^\s@]+@gmail\.com$/i;
 
 export const TEACHER_IMPORT_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
