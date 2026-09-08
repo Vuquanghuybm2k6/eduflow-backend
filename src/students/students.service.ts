@@ -41,7 +41,7 @@ export class StudentsService {
     private readonly branchesRepository: Repository<Branch>,
   ) {}
 
-  private async resolveOrganizationId(
+  async resolveOrganizationId(
     userId: string,
     requestedOrganizationId?: string,
   ): Promise<string> {
@@ -74,7 +74,7 @@ export class StudentsService {
     return membership.organizationId;
   }
 
-  private async assertIsAdminOrOwner(userId: string, organizationId: string) {
+  async assertIsAdminOrOwner(userId: string, organizationId: string) {
     const membership = await this.membershipsRepository.findOne({
       where: {
         userId,

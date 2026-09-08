@@ -276,6 +276,81 @@ describe('ExcelService', () => {
     });
   });
 
+  describe('exportWorksheet', () => {
+    it('should style the header row and enable freeze + autofilter', () => {
+      const workbook = service.exportWorksheet({
+        name: 'Students',
+        headers: ['Student Code', 'Full Name', 'Email', 'Address'],
+        rows: [['ST001', 'Nguyen A', 'a@gmail.com', '12 Nguyen Trai']],
+        columnWidths: [18, 24, 30, 40],
+        wrapColumns: [4],
+      });
+
+      const worksheet = service.getWorksheet(workbook, 'Students');
+      const headerRow = worksheet.getRow(1);
+
+      expect(headerRow.font?.bold).toBe(true);
+      expect(headerRow.height).toBe(28);
+      expect(worksheet.views).toEqual([{ state: 'frozen', ySplit: 1 }]);
+      expect(worksheet.autoFilter).toBeDefined();
+      expect(worksheet.getColumn(1).width).toBe(18);
+      expect(worksheet.getColumn(4).width).toBe(40);
+      expect(worksheet.getColumn(4).alignment?.wrapText).toBe(true);
+      expect(service.getHeaders(worksheet)).toEqual([
+        'Student Code',
+        'Full Name',
+        'Email',
+        'Address',
+      ]);
+      expect(service.getRows(worksheet)).toEqual([
+        {
+          rowNumber: 2,
+          values: ['ST001', 'Nguyen A', 'a@gmail.com', '12 Nguyen Trai'],
+        },
+      ]);
+    });
+
+    it('should sanitize formula-like cell values', () => {
+      const workbook = service.exportWorksheet({
+        name: 'Students',
+        headers: ['Full Name', 'Note'],
+        rows: [
+          ['=HYPERLINK("x")', '@cmd'],
+          ['+849', '-2+3'],
+          ['Nguyen Van A', 'normal'],
+        ],
+      });
+
+      const worksheet = service.getWorksheet(workbook, 'Students');
+      const rows = service.getRows(worksheet);
+
+      expect(rows[0].values).toEqual(["'=HYPERLINK(\"x\")", "'@cmd"]);
+      expect(rows[1].values).toEqual(["'+849", "'-2+3"]);
+      expect(rows[2].values).toEqual(['Nguyen Van A', 'normal']);
+    });
+
+    it('should produce a readable xlsx buffer', async () => {
+      const workbook = service.exportWorksheet({
+        name: 'Students',
+        headers: ['Student Code', 'Full Name', 'Status'],
+        rows: [['ST001', 'Nguyen A', 'Active']],
+      });
+
+      const buffer = await service.writeWorkbook(workbook);
+      const loaded = await service.readWorkbook(buffer);
+      const worksheet = service.getWorksheet(loaded, 'Students');
+
+      expect(service.getHeaders(worksheet)).toEqual([
+        'Student Code',
+        'Full Name',
+        'Status',
+      ]);
+      expect(service.getRows(worksheet)).toEqual([
+        { rowNumber: 2, values: ['ST001', 'Nguyen A', 'Active'] },
+      ]);
+    });
+  });
+
   describe('read integration', () => {
     it('should round-trip buffer -> workbook -> headers -> rows', async () => {
       const headers = ['student_code', 'full_name', 'email', 'branch_code'];

@@ -8,3 +8,11 @@ export interface ExcelWorksheetData {
   headers: string[];
   rows: ExcelRow[];
 }
+
+export interface ExcelExportWorksheet {
+  name: string;
+  headers: string[];
+  rows: unknown[][];
+  columnWidths?: number[];
+  wrapColumns?: number[];
+}

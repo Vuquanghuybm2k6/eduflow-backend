@@ -65,3 +65,21 @@ export function isEmptyRow(values: unknown[]): boolean {
     (value) => value === null || value === undefined || value === '',
   );
 }
+
+const EXCEL_FORMULA_PREFIXES = ['=', '+', '-', '@'];
+
+export function sanitizeExcelString(value: unknown): unknown {
+  // ngăn chặn Excel formula injection: các chuỗi bắt đầu bằng = + - @ sẽ bị
+  // thêm dấu nháy đơn phía trước để Excel coi là text (không phải công thức)
+  if (typeof value !== 'string' || value.length === 0) {
+    return value;
+  }
+
+  const firstChar = value.trimStart().charAt(0);
+
+  if (firstChar && EXCEL_FORMULA_PREFIXES.includes(firstChar)) {
+    return `'${value}`;
+  }
+
+  return value;
+}

@@ -1,4 +1,9 @@
-import { isEmptyRow, normalizeCellValue, normalizeHeader } from './excel.utils';
+import {
+  isEmptyRow,
+  normalizeCellValue,
+  normalizeHeader,
+  sanitizeExcelString,
+} from './excel.utils';
 
 describe('excel.utils', () => {
   describe('normalizeHeader', () => {
@@ -57,6 +62,32 @@ describe('excel.utils', () => {
     it('should return false when any value is present', () => {
       expect(isEmptyRow(['ST001'])).toBe(false);
       expect(isEmptyRow([null, 'name', ''])).toBe(false);
+    });
+  });
+
+  describe('sanitizeExcelString', () => {
+    it('should prefix strings starting with formula characters', () => {
+      expect(sanitizeExcelString('=1+1')).toBe("'=1+1");
+      expect(sanitizeExcelString('+84900000')).toBe("'+84900000");
+      expect(sanitizeExcelString('-2+3')).toBe("'-2+3");
+      expect(sanitizeExcelString('@import "x"')).toBe("'@import \"x\"");
+    });
+
+    it('should prefix values that only start with a formula character after whitespace', () => {
+      expect(sanitizeExcelString('  =SUM(A1)')).toBe("'  =SUM(A1)");
+    });
+
+    it('should keep normal strings unchanged', () => {
+      expect(sanitizeExcelString('Nguyen Van A')).toBe('Nguyen Van A');
+      expect(sanitizeExcelString('a+b')).toBe('a+b');
+      expect(sanitizeExcelString('8:30')).toBe('8:30');
+    });
+
+    it('should keep non-string values unchanged', () => {
+      expect(sanitizeExcelString(42)).toBe(42);
+      expect(sanitizeExcelString(null)).toBeNull();
+      expect(sanitizeExcelString(undefined)).toBeUndefined();
+      expect(sanitizeExcelString('')).toBe('');
     });
   });
 });

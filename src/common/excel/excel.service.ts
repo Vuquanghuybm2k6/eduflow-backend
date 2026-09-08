@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 
-import { ExcelRow } from './excel.types';
-import { normalizeCellValue, normalizeHeader } from './excel.utils';
+import { ExcelExportWorksheet, ExcelRow } from './excel.types';
+import {
+  normalizeCellValue,
+  normalizeHeader,
+  sanitizeExcelString,
+} from './excel.utils';
 
 type ExcelJsBuffer = Parameters<ExcelJS.Workbook['xlsx']['load']>[0];
 
@@ -88,6 +92,46 @@ export class ExcelService {
 
   async writeWorkbook(workbook: ExcelJS.Workbook): Promise<Buffer> {
     return Buffer.from(await workbook.xlsx.writeBuffer());
+  }
+
+  exportWorksheet(options: ExcelExportWorksheet): ExcelJS.Workbook {
+    const workbook = this.createWorkbook();
+    const worksheet = this.addWorksheet(workbook, options.name);
+
+    if (options.columnWidths) {
+      options.columnWidths.forEach((width, index) => {
+        if (width > 0) {
+          worksheet.getColumn(index + 1).width = width;
+        }
+      });
+    }
+
+    for (const column of options.wrapColumns ?? []) {
+      worksheet.getColumn(column).alignment = {
+        vertical: 'top' as const,
+        wrapText: true,
+      };
+    }
+
+    const headerRow = worksheet.addRow(options.headers);
+    headerRow.font = { bold: true };
+    headerRow.alignment = {
+      vertical: 'middle' as const,
+      horizontal: 'center' as const,
+    };
+    headerRow.height = 28;
+
+    for (const row of options.rows) {
+      worksheet.addRow(row.map((value) => sanitizeExcelString(value)));
+    }
+
+    worksheet.views = [{ state: 'frozen' as const, ySplit: 1 }];
+    worksheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: Math.max(1, options.headers.length) },
+    };
+
+    return workbook;
   }
 
   createTemplate(sheetName: string, headers: string[]): ExcelJS.Workbook {
