@@ -6,19 +6,26 @@ import {
   Patch,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { TeachersService } from './teachers.service';
+import { TeacherExportService } from './export/teacher-export.service';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { UpdateTeacherStatusDto } from './dto/update-teacher-status.dto';
+import { ExportTeachersQueryDto } from './dto/export-teachers-query.dto';
+import { EXCEL_MIME_TYPE } from '../common/excel/excel.constants';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Controller('teachers')
 export class TeachersController {
-  constructor(private readonly teachersService: TeachersService) {}
+  constructor(
+    private readonly teachersService: TeachersService,
+    private readonly teacherExportService: TeacherExportService,
+  ) {}
 
   @Post()
   create(
@@ -37,6 +44,22 @@ export class TeachersController {
     @Query('organizationId') organizationId?: string,
   ) {
     return this.teachersService.findAll(userId, { organizationId });
+  }
+
+  @Get('export')
+  async exportTeachers(
+    @CurrentUser('userId') userId: string,
+    @Query() query: ExportTeachersQueryDto,
+  ): Promise<StreamableFile> {
+    const { buffer, filename } = await this.teacherExportService.export(
+      userId,
+      query,
+    );
+
+    return new StreamableFile(buffer, {
+      type: EXCEL_MIME_TYPE,
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 
   @Get('me')
