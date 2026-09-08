@@ -6,6 +6,7 @@ import {
   TeacherImportBusinessValidator,
   TeacherImportRowValidator,
 } from './import/teacher-import.validator';
+import { TeacherImportExecutor } from './import/teacher-import.executor';
 import { Teacher } from './entities/teacher.entity';
 import { User } from '../users/entities/user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
@@ -23,11 +24,13 @@ import { AuthModule } from '../auth/auth.module';
     TeachersService,
     TeacherImportRowValidator,
     TeacherImportBusinessValidator,
+    TeacherImportExecutor,
   ],
   exports: [
     TeachersService,
     TeacherImportRowValidator,
     TeacherImportBusinessValidator,
+    TeacherImportExecutor,
   ],
 })
 export class TeachersModule {}

@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ImportsService } from './imports.service';
 import { ImportJobResult, ImportPreview } from './types/import.types';
+import { ConfirmImportDto } from './dto/confirm-import.dto';
 import type { StudentImportMeta } from '../students/import/student-import.types';
 import { TEACHER_IMPORT_MAX_FILE_SIZE_BYTES } from '../teachers/import/teacher-import.constants';
 import type {
@@ -51,10 +52,10 @@ export class ImportsController {
   @Post('students/confirm')
   confirmStudentImport(
     @CurrentUser('userId') userId: string,
-    @Body('importJobId') importJobId: string,
+    @Body() dto: ConfirmImportDto,
     @Query('organizationId') organizationId?: string,
   ): Promise<ImportJobResult> {
-    return this.importsService.confirmStudentImport(importJobId, userId, {
+    return this.importsService.confirmStudentImport(dto.importJobId, userId, {
       organizationId,
     });
   }
@@ -76,6 +77,17 @@ export class ImportsController {
     @Query('organizationId') organizationId?: string,
   ): Promise<TeacherImportPreview> {
     return this.importsService.previewTeacherImport(file, userId, {
+      organizationId,
+    });
+  }
+
+  @Post('teachers/confirm')
+  confirmTeacherImport(
+    @CurrentUser('userId') userId: string,
+    @Body() dto: ConfirmImportDto,
+    @Query('organizationId') organizationId?: string,
+  ): Promise<ImportJobResult> {
+    return this.importsService.confirmTeacherImport(dto.importJobId, userId, {
       organizationId,
     });
   }

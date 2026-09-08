@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 
 import { ExcelService } from '../common/excel/excel.service';
 import { ExcelRow } from '../common/excel/excel.types';
@@ -31,6 +31,7 @@ import {
   TEACHER_IMPORT_MAX_ROWS,
   TEACHER_IMPORT_WORKSHEET_NAME,
 } from '../teachers/import/teacher-import.constants';
+import { TeacherImportExecutor } from '../teachers/import/teacher-import.executor';
 import type {
   TeacherImportMeta,
   TeacherImportPreview,
@@ -73,6 +74,7 @@ export class ImportsService {
     private readonly studentImportExecutor: StudentImportExecutor,
     private readonly teacherRowValidator: TeacherImportRowValidator,
     private readonly teacherBusinessValidator: TeacherImportBusinessValidator,
+    private readonly teacherImportExecutor: TeacherImportExecutor,
     @InjectRepository(Membership)
     private readonly membershipsRepository: Repository<Membership>,
     @InjectRepository(ImportJob)
@@ -166,7 +168,16 @@ export class ImportsService {
       organizationId,
     );
 
-    return this.buildTeacherPreview(results);
+    const fileName = file?.originalname ?? 'teacher-import.xlsx';
+
+    const importJob = await this.persistTeacherPreview(
+      organizationId,
+      userId,
+      fileName,
+      results,
+    );
+
+    return this.buildTeacherPreview(importJob.id, results);
   }
 
   async confirmStudentImport(
@@ -186,6 +197,12 @@ export class ImportsService {
 
     if (!importJob) {
       throw new NotFoundException('Import job not found');
+    }
+
+    if (importJob.entityType !== 'student') {
+      throw new BadRequestException(
+        `Import job is not a student import (entityType: ${importJob.entityType})`,
+      );
     }
 
     await this.claimImportJob(importJob);
@@ -260,6 +277,103 @@ export class ImportsService {
     };
   }
 
+  async confirmTeacherImport(
+    importJobId: string,
+    userId: string,
+    options: OrgContextOptions = {},
+  ): Promise<ImportJobResult> {
+    const organizationId = await this.resolveOrganizationId(
+      userId,
+      options.organizationId,
+    );
+    await this.assertIsAdminOrOwner(userId, organizationId);
+
+    const importJob = await this.importJobsRepository.findOne({
+      where: { id: importJobId, organizationId },
+    });
+
+    if (!importJob) {
+      throw new NotFoundException('Import job not found');
+    }
+
+    if (importJob.entityType !== 'teacher') {
+      throw new BadRequestException(
+        `Import job is not a teacher import (entityType: ${importJob.entityType})`,
+      );
+    }
+
+    await this.claimImportJob(importJob);
+
+    const rows = await this.importJobRowsRepository.find({
+      where: { importJobId: importJob.id },
+      order: { rowNumber: 'ASC' },
+    });
+
+    const validRows = rows.filter(
+      (r) => r.status === ImportJobRowStatus.PENDING,
+    );
+
+    let successCount = 0;
+    let failCount = 0;
+    const rowResults: ImportJobRowResult[] = [];
+
+    for (const row of rows) {
+      if (row.status === ImportJobRowStatus.FAILED) {
+        failCount++;
+        rowResults.push({
+          rowNumber: row.rowNumber,
+          status: ImportJobRowOutcome.FAILED,
+          errors: row.errors,
+        });
+      }
+    }
+
+    for (const row of validRows) {
+      try {
+        await this.teacherImportExecutor.execute(row, organizationId);
+        successCount++;
+        await this.importJobRowsRepository.update(row.id, {
+          status: ImportJobRowStatus.SUCCESS,
+          errors: [],
+        });
+        rowResults.push({
+          rowNumber: row.rowNumber,
+          status: ImportJobRowOutcome.SUCCESS,
+          errors: [],
+        });
+      } catch (error) {
+        failCount++;
+        const errors = this.extractTeacherRowErrors(error);
+        await this.importJobRowsRepository.update(row.id, {
+          status: ImportJobRowStatus.FAILED,
+          errors,
+        });
+        rowResults.push({
+          rowNumber: row.rowNumber,
+          status: ImportJobRowOutcome.FAILED,
+          errors,
+        });
+      }
+    }
+
+    rowResults.sort((a, b) => a.rowNumber - b.rowNumber);
+
+    await this.importJobsRepository.update(importJob.id, {
+      status: ImportJobStatus.COMPLETED,
+      successRows: successCount,
+      failedRows: failCount,
+      completedAt: new Date(),
+    });
+
+    return {
+      importJobId: importJob.id,
+      total: importJob.totalRows,
+      success: successCount,
+      failed: failCount,
+      rows: rowResults,
+    };
+  }
+
   private async claimImportJob(importJob: ImportJob): Promise<void> {
     if (importJob.status !== ImportJobStatus.PREVIEW) {
       throw new BadRequestException(
@@ -297,7 +411,107 @@ export class ImportsService {
       return [{ field, message }];
     }
 
+    if (error instanceof QueryFailedError) {
+      const pgError = error.driverError as { code?: string; detail?: string };
+
+      if (pgError?.code === '23505') {
+        const detail = pgError.detail || '';
+
+        if (detail.includes('email')) {
+          return [{ field: 'email', message: 'Email already exists' }];
+        }
+
+        if (detail.includes('student_code')) {
+          return [
+            { field: 'student_code', message: 'Student code already exists' },
+          ];
+        }
+
+        return [{ field: 'general', message: `Duplicate key: ${detail}` }];
+      }
+    }
+
     return [{ field: 'general', message: 'An unexpected error occurred' }];
+  }
+
+  private extractTeacherRowErrors(
+    error: unknown,
+  ): Array<{ field: string; message: string }> {
+    if (error instanceof ConflictException) {
+      const message = error.message;
+      let field = 'general';
+
+      if (message.toLowerCase().includes('email')) {
+        field = 'email';
+      } else if (message.toLowerCase().includes('teacher code')) {
+        field = 'teacher_code';
+      } else if (message.toLowerCase().includes('branch')) {
+        field = 'branch_codes';
+      }
+
+      return [{ field, message }];
+    }
+
+    if (error instanceof QueryFailedError) {
+      const pgError = error.driverError as { code?: string; detail?: string };
+
+      if (pgError?.code === '23505') {
+        const detail = pgError.detail || '';
+
+        if (detail.includes('email')) {
+          return [{ field: 'email', message: 'Email already exists' }];
+        }
+
+        if (detail.includes('teacher_code')) {
+          return [
+            { field: 'teacher_code', message: 'Teacher code already exists' },
+          ];
+        }
+
+        return [{ field: 'general', message: `Duplicate key: ${detail}` }];
+      }
+    }
+
+    return [{ field: 'general', message: 'An unexpected error occurred' }];
+  }
+
+  private async persistTeacherPreview(
+    organizationId: string,
+    userId: string,
+    fileName: string,
+    results: TeacherImportRowResult[],
+  ): Promise<ImportJob> {
+    const importJob = await this.importJobsRepository.save(
+      this.importJobsRepository.create({
+        organizationId,
+        entityType: 'teacher',
+        fileName,
+        status: ImportJobStatus.PREVIEW,
+        totalRows: results.length,
+        createdBy: userId,
+      }),
+    );
+
+    const rowEntities = results.map((result) =>
+      this.importJobRowsRepository.create({
+        importJobId: importJob.id,
+        rowNumber: result.rowNumber,
+        rawData: result.data as unknown as Record<string, unknown>,
+        normalizedData: result.data as unknown as Record<string, unknown>,
+        status:
+          result.status === 'VALID'
+            ? ImportJobRowStatus.PENDING
+            : ImportJobRowStatus.FAILED,
+        errors: result.errors.map((e) => ({
+          field: e.field,
+          message: e.message,
+        })),
+      }),
+    );
+
+    await this.importJobRowsRepository.save(rowEntities);
+
+    return importJob;
   }
 
   private async persistPreview(
@@ -437,12 +651,14 @@ export class ImportsService {
   }
 
   private buildTeacherPreview(
+    importJobId: string,
     results: TeacherImportRowResult[],
   ): TeacherImportPreview {
     const total = results.length;
     const valid = results.filter((row) => row.status === 'VALID').length;
 
     return {
+      importJobId,
       total,
       valid,
       invalid: total - valid,

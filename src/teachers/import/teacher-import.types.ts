@@ -34,6 +34,7 @@ export interface TeacherImportRowResult {
 }
 
 export interface TeacherImportPreview {
+  importJobId: string;
   total: number;
   valid: number;
   invalid: number;
