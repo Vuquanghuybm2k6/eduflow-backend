@@ -163,8 +163,6 @@ export class StudentImportExecutor {
 
   private resolveGender(gender: string | null): Gender | null {
     const knownGenders = Object.values(Gender) as string[];
-    return gender && knownGenders.includes(gender)
-      ? (gender as Gender)
-      : null;
+    return gender && knownGenders.includes(gender) ? (gender as Gender) : null;
   }
 }

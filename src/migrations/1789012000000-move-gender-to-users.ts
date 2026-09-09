@@ -29,8 +29,12 @@ export class MoveGenderToUsers1789012000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE TYPE "TeacherGender" AS ENUM ('MALE', 'FEMALE', 'OTHER')`,
     );
-    await queryRunner.query(`ALTER TABLE "students" ADD "gender" "StudentGender"`);
-    await queryRunner.query(`ALTER TABLE "teachers" ADD "gender" "TeacherGender"`);
+    await queryRunner.query(
+      `ALTER TABLE "students" ADD "gender" "StudentGender"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "teachers" ADD "gender" "TeacherGender"`,
+    );
 
     await queryRunner.query(
       `UPDATE "students" s SET gender = u.gender FROM "users" u WHERE u.id = s."userId"`,

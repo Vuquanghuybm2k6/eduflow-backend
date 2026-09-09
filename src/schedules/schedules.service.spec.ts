@@ -17,6 +17,9 @@ import {
 import { Branch, BranchStatus } from '../branches/entities/branch.entity';
 import { Course, CourseStatus } from '../courses/entities/course.entity';
 import { Membership } from '../memberships/entities/membership.entity';
+import { Teacher } from '../teachers/entities/teacher.entity';
+import { Student } from '../students/entities/student.entity';
+import { Enrollment } from '../enrollments/entities/enrollment.entity';
 
 const userId = 'user-1';
 const organizationId = 'org-1';
@@ -86,6 +89,24 @@ describe('SchedulesService', () => {
           useValue: {
             createQueryBuilder: jest.fn(),
             findOne: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Teacher),
+          useValue: {
+            findOne: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Student),
+          useValue: {
+            findOne: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Enrollment),
+          useValue: {
+            find: jest.fn(),
           },
         },
         {
