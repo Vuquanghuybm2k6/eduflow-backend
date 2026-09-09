@@ -1,3 +1,5 @@
+import { Gender } from '../../users/entities/user.entity';
+
 export type TeacherImportField =
   | 'email'
   | 'full_name'
@@ -6,6 +8,7 @@ export type TeacherImportField =
   | 'qualification'
   | 'bio'
   | 'hire_date'
+  | 'gender'
   | 'branch_codes';
 
 export interface TeacherImportRowData {
@@ -16,6 +19,7 @@ export interface TeacherImportRowData {
   qualification: string | null;
   bio: string | null;
   hire_date: string | null;
+  gender: Gender | null;
   branch_codes: string[];
 }
 

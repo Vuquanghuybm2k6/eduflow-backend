@@ -15,6 +15,7 @@ import {
   TEACHER_EXPORT_HEADERS,
   TEACHER_EXPORT_QUALIFICATION_COLUMN_INDEX,
   TEACHER_EXPORT_SHEET_NAME,
+  TEACHER_GENDER_LABELS,
   TEACHER_STATUS_LABELS,
   TeacherExportResult,
 } from './teacher-export.types';
@@ -112,6 +113,7 @@ export class TeacherExportService {
         'user.id',
         'user.fullName',
         'user.email',
+        'user.gender',
       ])
       .leftJoin('teacher.user', 'user')
       .leftJoinAndSelect('teacher.branches', 'branch')
@@ -163,6 +165,7 @@ export class TeacherExportService {
       teacher.qualification ?? '',
       teacher.bio ?? '',
       teacher.hireDate ? formatDateOnly(teacher.hireDate) : '',
+      user.gender ? TEACHER_GENDER_LABELS[user.gender] : '',
       branchNames.join(', '),
       TEACHER_STATUS_LABELS[teacher.status],
       formatDateTime(teacher.createdAt),

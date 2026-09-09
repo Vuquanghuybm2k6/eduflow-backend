@@ -4,7 +4,7 @@ import ExcelJS from 'exceljs';
 import { ExcelExportWorksheet, ExcelRow } from './excel.types';
 import {
   normalizeCellValue,
-  normalizeHeader,
+  readHeaderText,
   sanitizeExcelString,
 } from './excel.utils';
 
@@ -48,7 +48,7 @@ export class ExcelService {
 
     return (Array.isArray(values) ? values : Object.values(values))
       .slice(1)
-      .map((value) => normalizeHeader(value));
+      .map((value) => readHeaderText(value));
   }
 
   getRows(worksheet: ExcelJS.Worksheet): ExcelRow[] {

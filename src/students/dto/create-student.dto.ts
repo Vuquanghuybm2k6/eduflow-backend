@@ -10,7 +10,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
-import { StudentGender } from '../entities/student.entity';
+import { Gender } from '../../users/entities/user.entity';
 
 export class CreateStudentDto {
   @IsString()
@@ -42,8 +42,8 @@ export class CreateStudentDto {
   dateOfBirth?: string;
 
   @IsOptional()
-  @IsEnum(StudentGender)
-  gender?: StudentGender;
+  @IsEnum(Gender)
+  gender?: Gender;
 
   @IsOptional()
   @IsString()

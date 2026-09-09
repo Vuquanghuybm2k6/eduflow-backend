@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
-import { StudentGender, StudentStatus } from '../entities/student.entity';
+import { Gender } from '../../users/entities/user.entity';
+import { StudentStatus } from '../entities/student.entity';
 
 export class ExportStudentsQueryDto {
   @IsOptional()
@@ -19,8 +20,8 @@ export class ExportStudentsQueryDto {
   status?: StudentStatus;
 
   @IsOptional()
-  @IsEnum(StudentGender)
-  gender?: StudentGender;
+  @IsEnum(Gender)
+  gender?: Gender;
 
   @IsOptional()
   @IsUUID('4')

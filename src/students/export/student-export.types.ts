@@ -1,4 +1,5 @@
-import { StudentGender, StudentStatus } from '../entities/student.entity';
+import { Gender } from '../../users/entities/user.entity';
+import { StudentStatus } from '../entities/student.entity';
 
 export const STUDENT_EXPORT_SHEET_NAME = 'Học viên';
 
@@ -20,7 +21,7 @@ export const STUDENT_EXPORT_COLUMN_WIDTHS = [
 
 export const STUDENT_EXPORT_ADDRESS_COLUMN_INDEX = 8;
 
-export const STUDENT_GENDER_LABELS: Record<StudentGender, string> = {
+export const STUDENT_GENDER_LABELS: Record<Gender, string> = {
   MALE: 'Nam',
   FEMALE: 'Nữ',
   OTHER: 'Khác',

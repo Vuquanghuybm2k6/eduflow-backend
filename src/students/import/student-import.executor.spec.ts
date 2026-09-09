@@ -3,8 +3,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
-import { Student, StudentGender } from '../entities/student.entity';
-import { User } from '../../users/entities/user.entity';
+import { Student } from '../entities/student.entity';
+import { Gender, User } from '../../users/entities/user.entity';
 import { Branch, BranchStatus } from '../../branches/entities/branch.entity';
 import {
   ImportJobRow,
@@ -42,9 +42,9 @@ describe('StudentImportExecutor', () => {
 
   function txManager() {
     return {
-      save: jest.fn().mockImplementation((arg) =>
-        Promise.resolve({ ...arg, id: 'new-id' }),
-      ),
+      save: jest
+        .fn()
+        .mockImplementation((arg) => Promise.resolve({ ...arg, id: 'new-id' })),
       findOneBy: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockImplementation((arg) => arg),
     };
@@ -66,9 +66,7 @@ describe('StudentImportExecutor', () => {
       findOne: jest.fn().mockResolvedValue(null),
     };
     dataSource = {
-      transaction: jest
-        .fn()
-        .mockImplementation((fn) => fn(txManager())),
+      transaction: jest.fn().mockImplementation((fn) => fn(txManager())),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -96,6 +94,7 @@ describe('StudentImportExecutor', () => {
     const userEntity = tx.create.mock.calls[0][1];
     expect(userEntity.email).toBe('a@gmail.com');
     expect(userEntity.fullName).toBe('Nguyen Van A');
+    expect(userEntity.gender).toBe(Gender.MALE);
 
     const membershipEntity = tx.create.mock.calls[2][1];
     expect(membershipEntity.userId).toBe('new-id');
@@ -103,7 +102,6 @@ describe('StudentImportExecutor', () => {
 
     const studentEntity = tx.create.mock.calls[3][1];
     expect(studentEntity.studentCode).toBe('ST001');
-    expect(studentEntity.gender).toBe(StudentGender.MALE);
     expect(studentEntity.branches).toHaveLength(1);
   });
 

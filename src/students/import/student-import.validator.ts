@@ -3,13 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 
 import { Branch, BranchStatus } from '../../branches/entities/branch.entity';
-import { Student, StudentGender } from '../entities/student.entity';
+import { Student } from '../entities/student.entity';
 import { User } from '../../users/entities/user.entity';
 import {
   ImportParsedRow,
   ImportRowError,
   ImportRowResult,
 } from '../../imports/types/import.types';
+import { normalizeGenderValue } from '../../imports/utils/gender.utils';
 
 const EMAIL_PATTERN = /^[^\s@]+@gmail\.com$/i;
 const PHONE_PATTERN = /^[0-9+\-() ]{6,20}$/;
@@ -191,20 +192,9 @@ export class StudentImportRowValidator {
       return;
     }
 
-    let normalized: string;
+    const normalized = normalizeGenderValue(raw);
 
-    if (typeof raw === 'string') {
-      normalized = raw.trim().toUpperCase();
-    } else if (typeof raw === 'number' || typeof raw === 'boolean') {
-      normalized = String(raw).trim().toUpperCase();
-    } else {
-      errors.push(errorOf(rowNumber, 'gender', 'Giới tính không hợp lệ'));
-      return;
-    }
-
-    const knownGenders = Object.values(StudentGender) as string[];
-
-    if (!knownGenders.includes(normalized)) {
+    if (!normalized) {
       errors.push(errorOf(rowNumber, 'gender', 'Giới tính không hợp lệ'));
       return;
     }

@@ -10,12 +10,14 @@ import { QueryFailedError, Repository } from 'typeorm';
 
 import { ExcelService } from '../common/excel/excel.service';
 import { ExcelRow } from '../common/excel/excel.types';
-import { isEmptyRow, normalizeHeader } from '../common/excel/excel.utils';
+import { isEmptyRow } from '../common/excel/excel.utils';
 import {
   Membership,
   MembershipStatus,
 } from '../memberships/entities/membership.entity';
 import {
+  STUDENT_IMPORT_DEFINITION,
+  STUDENT_IMPORT_HEADER_LABELS,
   STUDENT_IMPORT_HEADERS,
   StudentImportMeta,
 } from '../students/import/student-import.types';
@@ -25,6 +27,7 @@ import {
   StudentImportRowValidator,
 } from '../students/import/student-import.validator';
 import {
+  TEACHER_IMPORT_DEFINITION,
   TEACHER_IMPORT_HEADER_LABELS,
   TEACHER_IMPORT_HEADERS,
   TEACHER_IMPORT_MAX_FILE_SIZE_BYTES,
@@ -86,15 +89,7 @@ export class ImportsService {
   getStudentImportMeta(): StudentImportMeta {
     return {
       headers: [...STUDENT_IMPORT_HEADERS],
-      headerLabels: {
-        student_code: 'Mã học viên',
-        full_name: 'Họ và tên',
-        email: 'Email',
-        phone: 'Số điện thoại',
-        date_of_birth: 'Ngày sinh',
-        gender: 'Giới tính',
-        branch_code: 'Mã chi nhánh',
-      },
+      headerLabels: { ...STUDENT_IMPORT_HEADER_LABELS },
       maxFileSizeBytes: IMPORT_MAX_FILE_SIZE_BYTES,
       allowedExtensions: [EXCEL_EXTENSION],
     };
@@ -111,8 +106,10 @@ export class ImportsService {
     );
 
     const worksheet = await this.fileValidator.validate(file);
-    const headers = this.excelService.getHeaders(worksheet);
-    this.headerValidator.validate(headers, STUDENT_IMPORT_HEADERS);
+    const headers = this.headerValidator.validate(
+      this.excelService.getHeaders(worksheet),
+      STUDENT_IMPORT_DEFINITION,
+    );
 
     const excelRows = this.excelService.getRows(worksheet);
     const parsedRows = this.parseRows(excelRows, headers);
@@ -155,10 +152,11 @@ export class ImportsService {
       maxRows: TEACHER_IMPORT_MAX_ROWS,
       sheetName: TEACHER_IMPORT_WORKSHEET_NAME,
     });
-    const headers = this.excelService.getHeaders(worksheet);
-    this.headerValidator.validate(headers, TEACHER_IMPORT_HEADERS, {
-      ignoreUnexpected: true,
-    });
+    const headers = this.headerValidator.validate(
+      this.excelService.getHeaders(worksheet),
+      TEACHER_IMPORT_DEFINITION,
+      { ignoreUnexpected: true },
+    );
 
     const excelRows = this.excelService.getRows(worksheet);
     const parsedRows = this.parseRows(excelRows, headers);
@@ -626,7 +624,7 @@ export class ImportsService {
 
         headers.forEach((header, index) => {
           if (header) {
-            data[normalizeHeader(header).toLowerCase()] = row.values[index];
+            data[header] = row.values[index];
           }
         });
 

@@ -10,13 +10,7 @@ import { SchedulesController } from './schedules.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Schedule,
-      Class,
-      Branch,
-      Course,
-      Membership,
-    ]),
+    TypeOrmModule.forFeature([Schedule, Class, Branch, Course, Membership]),
   ],
   controllers: [SchedulesController],
   providers: [SchedulesService],

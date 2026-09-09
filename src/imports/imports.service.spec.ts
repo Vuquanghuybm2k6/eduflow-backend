@@ -1,3 +1,6 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
 import {
   BadRequestException,
   ConflictException,
@@ -251,6 +254,141 @@ describe('ImportsService', () => {
     expect(preview.rows.map((item) => item.rowNumber)).toEqual([2, 3]);
   });
 
+  it('accepts a file whose headers are written in Vietnamese', async () => {
+    const headers = [
+      'Họ và tên',
+      'Email',
+      'Mã học viên',
+      'Số điện thoại',
+      'Ngày sinh',
+      'Giới tính',
+      'Mã chi nhánh',
+    ];
+    const buffer = await buildXlsx(headers, [
+      [
+        'Nguyen A',
+        'a@gmail.com',
+        'ST001',
+        '0901234567',
+        '2006-01-01',
+        'MALE',
+        'HN01',
+      ],
+    ]);
+
+    const preview = await service.previewStudentImport(
+      makeFile({ buffer, size: buffer.length }),
+      'user-1',
+    );
+
+    expect(preview.totalRows).toBe(1);
+    expect(preview.validRows).toBe(1);
+    expect(preview.rows[0].values['full_name']).toBe('Nguyen A');
+    expect(preview.rows[0].values['student_code']).toBe('ST001');
+    expect(preview.rows[0].values['email']).toBe('a@gmail.com');
+  });
+
+  it('accepts a file whose headers use mixed casing, spaces, underscores and dashes', async () => {
+    const headers = [
+      'Mã Học Viên',
+      'Họ_và_tên',
+      'EMAIL',
+      'số điện thoại',
+      'Ngày Sinh',
+      'giới-tính',
+      'MÃ CHI NHÁNH',
+    ];
+    const buffer = await buildXlsx(headers, [
+      [
+        'ST001',
+        'Nguyen A',
+        'a@gmail.com',
+        '0901234567',
+        '2006-01-01',
+        'MALE',
+        'HN01',
+      ],
+    ]);
+
+    const preview = await service.previewStudentImport(
+      makeFile({ buffer, size: buffer.length }),
+      'user-1',
+    );
+
+    expect(preview.totalRows).toBe(1);
+    expect(preview.validRows).toBe(1);
+    expect(preview.rows[0].values['student_code']).toBe('ST001');
+    expect(preview.rows[0].values['full_name']).toBe('Nguyen A');
+    expect(preview.rows[0].values['gender']).toBe('MALE');
+  });
+
+  it('previews the generated Vietnamese student template file', async () => {
+    const buffer = readFileSync(
+      join(process.cwd(), 'src', 'templates', 'student-import-sample-vi.xlsx'),
+    );
+
+    const preview = await service.previewStudentImport(
+      makeFile({ buffer, size: buffer.length }),
+      'user-1',
+    );
+
+    expect(preview.totalRows).toBe(2);
+    expect(preview.validRows).toBe(2);
+    expect(preview.invalidRows).toBe(0);
+    expect(preview.rows[0].values['student_code']).toBe('HS001');
+    expect(preview.rows[0].values['full_name']).toBe('Nguyễn Văn An');
+    expect(preview.rows[0].values['gender']).toBe('MALE');
+  });
+
+  it('previews the generated English student template file', async () => {
+    const buffer = readFileSync(
+      join(process.cwd(), 'src', 'templates', 'student-import-sample-en.xlsx'),
+    );
+
+    const preview = await service.previewStudentImport(
+      makeFile({ buffer, size: buffer.length }),
+      'user-1',
+    );
+
+    expect(preview.totalRows).toBe(2);
+    expect(preview.validRows).toBe(2);
+    expect(preview.invalidRows).toBe(0);
+    expect(preview.rows[1].values['student_code']).toBe('HS002');
+    expect(preview.rows[1].values['full_name']).toBe('Tran Thi Bich');
+    expect(preview.rows[1].values['gender']).toBe('FEMALE');
+  });
+
+  it('rejects a file whose headers duplicate after normalization', async () => {
+    const headers = [
+      'student_code',
+      'full_name',
+      'email',
+      'phone',
+      'date_of_birth',
+      'Giới tính',
+      'GIỚI TÍNH',
+      'branch_code',
+    ];
+    const buffer = await buildXlsx(headers, [
+      [
+        'ST001',
+        'Nguyen A',
+        'a@gmail.com',
+        '0901234567',
+        '2006-01-01',
+        'MALE',
+        'HN01',
+      ],
+    ]);
+
+    await expect(
+      service.previewStudentImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      ),
+    ).rejects.toThrow('Cột bị lặp: Giới tính');
+  });
+
   it('skips trailing empty rows while keeping real excel row numbers', async () => {
     const buffer = await buildXlsx(STUDENT_HEADERS, [
       [
@@ -439,9 +577,20 @@ describe('ImportsService', () => {
           'Master',
           'Bio A',
           '2025-01-10',
+          'FEMALE',
           'BR001, BR002',
         ],
-        ['teacher2@gmail.com', 'Tran Van B', 'GV002', '', '', '', '', 'BR001'],
+        [
+          'teacher2@gmail.com',
+          'Tran Van B',
+          'GV002',
+          '',
+          '',
+          '',
+          '',
+          '',
+          'BR001',
+        ],
       ]);
 
       const preview = await service.previewTeacherImport(
@@ -456,6 +605,165 @@ describe('ImportsService', () => {
       expect(preview.rows[0].data.branch_codes).toEqual(['BR001', 'BR002']);
     });
 
+    it('accepts a file whose headers are written in Vietnamese', async () => {
+      const headers = [
+        'Họ và tên',
+        'Email',
+        'Mã giáo viên',
+        'Giới tính',
+        'Chuyên môn',
+        'Bằng cấp',
+        'Giới thiệu',
+        'Ngày tuyển dụng',
+        'Mã chi nhánh',
+      ];
+      const buffer = await buildTeacherXlsx(headers, [
+        [
+          'Nguyen Van A',
+          'teacher1@gmail.com',
+          'GV001',
+          'FEMALE',
+          'Mathematics',
+          'Master',
+          'Bio A',
+          '2025-01-10',
+          'BR001, BR002',
+        ],
+      ]);
+
+      const preview = await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      );
+
+      expect(preview.total).toBe(1);
+      expect(preview.valid).toBe(1);
+      expect(preview.rows[0].data.full_name).toBe('Nguyen Van A');
+      expect(preview.rows[0].data.teacher_code).toBe('GV001');
+      expect(preview.rows[0].data.gender).toBe('FEMALE');
+      expect(preview.rows[0].data.branch_codes).toEqual(['BR001', 'BR002']);
+    });
+
+    it('accepts a file whose headers are written in English aliases', async () => {
+      const headers = [
+        'Full Name',
+        'E-mail',
+        'Teacher Code',
+        'Gender',
+        'Subject',
+        'Degree',
+        'Bio',
+        'Hire Date',
+        'Branch Codes',
+      ];
+      const buffer = await buildTeacherXlsx(headers, [
+        [
+          'Nguyen Van A',
+          'teacher1@gmail.com',
+          'GV001',
+          'FEMALE',
+          'Mathematics',
+          'Master',
+          'Bio A',
+          '2025-01-10',
+          'BR001, BR002',
+        ],
+      ]);
+
+      const preview = await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      );
+
+      expect(preview.total).toBe(1);
+      expect(preview.valid).toBe(1);
+      expect(preview.rows[0].data.full_name).toBe('Nguyen Van A');
+      expect(preview.rows[0].data.teacher_code).toBe('GV001');
+      expect(preview.rows[0].data.gender).toBe('FEMALE');
+      expect(preview.rows[0].data.branch_codes).toEqual(['BR001', 'BR002']);
+    });
+
+    it('accepts a file whose headers use mixed casing, spaces, underscores and dashes', async () => {
+      const headers = [
+        'Email',
+        'Họ-và-tên',
+        'Mã Giáo Viên',
+        'Chuyên môn',
+        'Bằng cấp',
+        'Giới thiệu',
+        'Ngày tuyển dụng',
+        'giới_tính',
+        'MÃ CHI NHÁNH',
+      ];
+      const buffer = await buildTeacherXlsx(headers, [
+        [
+          'teacher1@gmail.com',
+          'Nguyen Van A',
+          'GV001',
+          'Mathematics',
+          'Master',
+          'Bio A',
+          '2025-01-10',
+          'FEMALE',
+          'BR001, BR002',
+        ],
+      ]);
+
+      const preview = await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      );
+
+      expect(preview.total).toBe(1);
+      expect(preview.valid).toBe(1);
+      expect(preview.rows[0].data.gender).toBe('FEMALE');
+    });
+
+    it('previews the generated Vietnamese teacher template file', async () => {
+      const buffer = readFileSync(
+        join(
+          process.cwd(),
+          'src',
+          'templates',
+          'teacher-import-sample-vi.xlsx',
+        ),
+      );
+
+      const preview = await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      );
+
+      expect(preview.total).toBe(2);
+      expect(preview.valid).toBe(2);
+      expect(preview.invalid).toBe(0);
+      expect(preview.rows[0].data.full_name).toBe('Nguyễn Thị Hoa');
+      expect(preview.rows[0].data.gender).toBe('FEMALE');
+      expect(preview.rows[0].data.branch_codes).toEqual(['BR001', 'BR002']);
+    });
+
+    it('previews the generated English teacher template file', async () => {
+      const buffer = readFileSync(
+        join(
+          process.cwd(),
+          'src',
+          'templates',
+          'teacher-import-sample-en.xlsx',
+        ),
+      );
+
+      const preview = await service.previewTeacherImport(
+        makeFile({ buffer, size: buffer.length }),
+        'user-1',
+      );
+
+      expect(preview.total).toBe(2);
+      expect(preview.valid).toBe(2);
+      expect(preview.invalid).toBe(0);
+      expect(preview.rows[1].data.teacher_code).toBe('GV002');
+      expect(preview.rows[1].data.gender).toBe('MALE');
+    });
+
     it('marks duplicate rows inside the file as invalid', async () => {
       const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
         [
@@ -466,12 +774,14 @@ describe('ImportsService', () => {
           '',
           '',
           '',
+          '',
           'BR001',
         ],
         [
           'teacher2@gmail.com',
           'Nguyen Van C',
           'GV001',
+          '',
           '',
           '',
           '',
@@ -503,6 +813,7 @@ describe('ImportsService', () => {
           '',
           '',
           '',
+          '',
           'BR001',
           '0901234567',
           'x',
@@ -528,6 +839,7 @@ describe('ImportsService', () => {
         'qualification',
         'bio',
         'hire_date',
+        'gender',
         'branch_codes',
       ];
       const buffer = await buildTeacherXlsx(headers, [
@@ -540,6 +852,7 @@ describe('ImportsService', () => {
           '',
           '',
           '2025-01-10',
+          'MALE',
           'BR001, BR002',
         ],
       ]);
@@ -606,7 +919,7 @@ describe('ImportsService', () => {
       queryBuilderMock.getOne.mockResolvedValue(null);
 
       const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
-        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', 'BR001'],
+        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', '', 'BR001'],
       ]);
 
       await expect(
@@ -619,7 +932,7 @@ describe('ImportsService', () => {
 
     it('passes the resolved organizationId to the teacher business validator', async () => {
       const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
-        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', 'BR001'],
+        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', '', 'BR001'],
       ]);
 
       await service.previewTeacherImport(
@@ -638,7 +951,7 @@ describe('ImportsService', () => {
 
     it('respects a requested organizationId', async () => {
       const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
-        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', 'BR001'],
+        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', '', 'BR001'],
       ]);
 
       await service.previewTeacherImport(
@@ -663,10 +976,21 @@ describe('ImportsService', () => {
           '',
           '',
           '',
+          '',
           'BR001',
         ],
-        ['teacher2@gmail.com', 'Tran Van B', 'GV002', '', '', '', '', 'BR001'],
-        ['teacher3@gmail.com', 'Le Van C', 'GV003', '', '', '', '', ''],
+        [
+          'teacher2@gmail.com',
+          'Tran Van B',
+          'GV002',
+          '',
+          '',
+          '',
+          '',
+          '',
+          'BR001',
+        ],
+        ['teacher3@gmail.com', 'Le Van C', 'GV003', '', '', '', '', '', ''],
       ]);
 
       const preview = await service.previewTeacherImport(
@@ -709,7 +1033,7 @@ describe('ImportsService', () => {
 
     it('does not create business records during preview', async () => {
       const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
-        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', 'BR001'],
+        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', '', 'BR001'],
       ]);
 
       await service.previewTeacherImport(
@@ -818,7 +1142,10 @@ describe('ImportsService', () => {
 
     it('maps unique-violation errors to email/student_code fields', async () => {
       const details = [
-        { detail: 'Key (email)=(dup@gmail.com) already exists.', field: 'email' },
+        {
+          detail: 'Key (email)=(dup@gmail.com) already exists.',
+          field: 'email',
+        },
         {
           detail: 'Key (student_code)=(ST001) already exists.',
           field: 'student_code',

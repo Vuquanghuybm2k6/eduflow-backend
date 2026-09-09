@@ -3,12 +3,14 @@ import {
   IsArray,
   IsDateString,
   IsEmail,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { Gender } from '../../users/entities/user.entity';
 
 export class CreateTeacherDto {
   @IsString()
@@ -49,6 +51,10 @@ export class CreateTeacherDto {
   @IsString()
   @MaxLength(2000)
   bio?: string;
+
+  @IsOptional()
+  @IsEnum(Gender)
+  gender?: Gender;
 
   @IsOptional()
   @IsDateString()

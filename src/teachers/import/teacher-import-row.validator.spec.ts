@@ -31,6 +31,7 @@ describe('TeacherImportRowValidator', () => {
         qualification: 'Master',
         bio: 'Senior teacher',
         hire_date: '2025-01-10',
+        gender: 'female',
         branch_codes: ' BR001, BR002 ',
       }),
     ]);
@@ -42,7 +43,40 @@ describe('TeacherImportRowValidator', () => {
     expect(results[0].data.full_name).toBe('Nguyen Van A');
     expect(results[0].data.teacher_code).toBe('GV001');
     expect(results[0].data.hire_date).toBe('2025-01-10');
+    expect(results[0].data.gender).toBe('FEMALE');
     expect(results[0].data.branch_codes).toEqual(['BR001', 'BR002']);
+  });
+
+  it('normalizes Vietnamese gender values to the gender enum', () => {
+    const results = validator.validateRows([
+      row(2, {
+        email: 'a@gmail.com',
+        full_name: 'Nguyen Van A',
+        teacher_code: 'GV001',
+        gender: 'Nam',
+        branch_codes: 'BR001',
+      }),
+      row(3, {
+        email: 'b@gmail.com',
+        full_name: 'Nguyen Thi B',
+        teacher_code: 'GV002',
+        gender: 'Nữ',
+        branch_codes: 'BR001',
+      }),
+      row(4, {
+        email: 'c@gmail.com',
+        full_name: 'Nguyen Van C',
+        teacher_code: 'GV003',
+        gender: 'Khác',
+        branch_codes: 'BR001',
+      }),
+    ]);
+
+    expect(results.map((r) => r.data.gender)).toEqual([
+      'MALE',
+      'FEMALE',
+      'OTHER',
+    ]);
   });
 
   it('accepts a single optional branch code', () => {
@@ -380,5 +414,23 @@ describe('TeacherImportRowValidator', () => {
     expect(results[0].data.qualification).toBeNull();
     expect(results[0].data.bio).toBeNull();
     expect(results[0].data.hire_date).toBeNull();
+    expect(results[0].data.gender).toBeNull();
+  });
+
+  it('rejects an invalid gender', () => {
+    const results = validator.validateRows([
+      row(2, {
+        email: 'a@gmail.com',
+        full_name: 'Nguyen Van A',
+        teacher_code: 'GV001',
+        gender: 'UNKNOWN',
+        branch_codes: 'BR001',
+      }),
+    ]);
+
+    expect(results[0].status).toBe('INVALID');
+    expect(results[0].errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'gender' })]),
+    );
   });
 });

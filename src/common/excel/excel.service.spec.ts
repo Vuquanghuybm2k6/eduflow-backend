@@ -324,7 +324,7 @@ describe('ExcelService', () => {
       const worksheet = service.getWorksheet(workbook, 'Students');
       const rows = service.getRows(worksheet);
 
-      expect(rows[0].values).toEqual(["'=HYPERLINK(\"x\")", "'@cmd"]);
+      expect(rows[0].values).toEqual(['\'=HYPERLINK("x")', "'@cmd"]);
       expect(rows[1].values).toEqual(["'+849", "'-2+3"]);
       expect(rows[2].values).toEqual(['Nguyen Van A', 'normal']);
     });

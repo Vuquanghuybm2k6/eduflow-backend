@@ -213,6 +213,7 @@ export class StudentsService {
           passwordHash,
           fullName: createStudentDto.fullName,
           phone: createStudentDto.phone ?? null,
+          gender: createStudentDto.gender ?? null,
         }),
       );
 
@@ -232,7 +233,6 @@ export class StudentsService {
           organizationId,
           studentCode: createStudentDto.studentCode,
           dateOfBirth: createStudentDto.dateOfBirth ?? null,
-          gender: createStudentDto.gender ?? null,
           address: createStudentDto.address ?? null,
           branches,
         }),
@@ -335,9 +335,18 @@ export class StudentsService {
       student.branches = branches;
     }
 
-    const { branchIds: _branchIds, ...fields } = updateStudentDto;
+    const { branchIds: _branchIds, gender, ...fields } = updateStudentDto;
     Object.assign(student, fields);
-    return this.studentsRepository.save(student);
+
+    if (gender !== undefined && student.user) {
+      student.user.gender = gender ?? null;
+    }
+
+    await this.studentsRepository.save(student);
+    if (gender !== undefined && student.user) {
+      await this.usersRepository.save(student.user);
+    }
+    return student;
   }
 
   async updateStatus(

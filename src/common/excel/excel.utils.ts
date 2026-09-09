@@ -1,5 +1,7 @@
-export function normalizeHeader(value: unknown): string {
-  // chuẩn hóa ô header thành string
+export function readHeaderText(value: unknown): string {
+  // đọc ô header thô (như người dùng nhập): chỉ trim, giữ nguyên chữ hoa/separator.
+  // ExcelJS có thể trả về object rich-text/hyperlink thay vì string (file tạo từ
+  // Excel/Google Sheets khi ô bị format hoặc dán văn bản tiếng Việt) nên cần unwrap.
   if (typeof value === 'string') {
     return value.trim();
   }
@@ -8,7 +10,26 @@ export function normalizeHeader(value: unknown): string {
     return String(value);
   }
 
+  if (typeof value === 'object' && value !== null) {
+    const text = unwrapCellText(value);
+
+    if (text !== null) {
+      return text;
+    }
+  }
+
   return '';
+}
+
+export function normalizeHeader(value: unknown): string {
+  // chuẩn hóa header để so khớp: trim, lowercase, chuyển _ và - thành khoảng
+  // trắng, gộp nhiều khoảng trắng liên tiếp thành một. Không remove dấu tiếng Việt.
+  return readHeaderText(value)
+    .toLowerCase()
+    .replaceAll('_', ' ')
+    .replaceAll('-', ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function normalizeCellValue(value: unknown): unknown {

@@ -106,11 +106,11 @@ describe('SchedulesService', () => {
     branchRepo.findOneBy.mockResolvedValue({
       id: 'branch-1',
       status: BranchStatus.ACTIVE,
-    } as Branch);
+    });
     courseRepo.findOneBy.mockResolvedValue({
       id: 'course-1',
       status: CourseStatus.ACTIVE,
-    } as Course);
+    });
 
     // Default: the current user is an owner/admin.
     membershipRepo.findOne.mockResolvedValue({
@@ -229,7 +229,7 @@ describe('SchedulesService', () => {
       branchRepo.findOneBy.mockResolvedValue({
         id: 'branch-1',
         status: BranchStatus.INACTIVE,
-      } as Branch);
+      });
 
       await expect(
         service.create(userId, classId, baseDto),
@@ -240,7 +240,7 @@ describe('SchedulesService', () => {
       courseRepo.findOneBy.mockResolvedValue({
         id: 'course-1',
         status: CourseStatus.INACTIVE,
-      } as Course);
+      });
 
       await expect(
         service.create(userId, classId, baseDto),
@@ -396,7 +396,7 @@ describe('SchedulesService', () => {
       courseRepo.findOneBy.mockResolvedValue({
         id: 'course-1',
         status: CourseStatus.INACTIVE,
-      } as Course);
+      });
 
       await expect(
         service.createBulk(userId, classId, sessions()),
@@ -422,18 +422,18 @@ describe('SchedulesService', () => {
       scheduleRepo.findOneBy.mockResolvedValue({
         id: 'sched-1',
         classId,
-      } as Schedule);
+      });
       classRepo.findOneBy.mockResolvedValue({
         id: classId,
         organizationId,
         teacherId,
         status: ClassStatus.ACTIVE,
         lifecycleStatus: ClassLifecycleStatus.UPCOMING,
-      } as Class);
+      });
       scheduleRepo.remove.mockResolvedValue({
         id: 'sched-1',
         classId,
-      } as Schedule);
+      });
 
       const result = await service.remove(userId, 'sched-1');
 

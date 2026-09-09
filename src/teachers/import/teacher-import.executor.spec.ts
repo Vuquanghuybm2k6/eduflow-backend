@@ -29,6 +29,7 @@ function makeRow(
       qualification: 'Master',
       bio: 'Example bio',
       hire_date: '2025-01-10',
+      gender: 'FEMALE',
       branch_codes: ['HN01', 'HN02'],
     },
     ...overrides,
@@ -120,6 +121,7 @@ describe('TeacherImportExecutor', () => {
     expect(userEntity.email).toBe('a@gmail.com');
     expect(userEntity.fullName).toBe('Nguyen Van A');
     expect(userEntity.phone).toBeNull();
+    expect(userEntity.gender).toBe('FEMALE');
 
     const membershipEntity = tx.create.mock.calls[2][1];
     expect(membershipEntity.userId).toBe('new-id');
@@ -158,6 +160,21 @@ describe('TeacherImportExecutor', () => {
         organizationId: 'org-1',
       }),
     );
+  });
+
+  it('assigns a null gender when the row has no gender', async () => {
+    const tx = txManager();
+    dataSource.transaction.mockImplementation((fn) => fn(tx));
+
+    await executor.execute(
+      makeRow({
+        normalizedData: { ...makeRow().normalizedData, gender: null },
+      }) as ImportJobRow,
+      'org-1',
+    );
+
+    const userEntity = tx.create.mock.calls[0][1];
+    expect(userEntity.gender).toBeNull();
   });
 
   it('throws ConflictException when the teacher code already exists', async () => {

@@ -1,9 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { STUDENT_IMPORT_DEFINITION } from '../../students/import/student-import.types';
+import { TEACHER_IMPORT_DEFINITION } from '../../teachers/import/teacher-import.constants';
 import { ImportHeaderValidator } from './import-header.validator';
 
-const EXPECTED_HEADERS = [
+const STUDENT_HEADERS = [
   'student_code',
   'full_name',
   'email',
@@ -25,17 +27,9 @@ describe('ImportHeaderValidator', () => {
   });
 
   it('accepts the correct headers in the official order', () => {
-    const headers = [
-      'student_code',
-      'full_name',
-      'email',
-      'phone',
-      'date_of_birth',
-      'gender',
-      'branch_code',
-    ];
-
-    expect(() => validator.validate(headers, EXPECTED_HEADERS)).not.toThrow();
+    expect(() =>
+      validator.validate(STUDENT_HEADERS, STUDENT_IMPORT_DEFINITION),
+    ).not.toThrow();
   });
 
   it('accepts headers in any order', () => {
@@ -49,7 +43,9 @@ describe('ImportHeaderValidator', () => {
       'phone',
     ];
 
-    expect(() => validator.validate(headers, EXPECTED_HEADERS)).not.toThrow();
+    expect(() =>
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION),
+    ).not.toThrow();
   });
 
   it('accepts headers with surrounding whitespace and different casing', () => {
@@ -63,22 +59,97 @@ describe('ImportHeaderValidator', () => {
       'branch_code',
     ];
 
-    expect(() => validator.validate(headers, EXPECTED_HEADERS)).not.toThrow();
+    expect(() =>
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION),
+    ).not.toThrow();
+  });
+
+  it('resolves every student Vietnamese header variant to its internal key', () => {
+    const headers = [
+      'Mã Học Viên',
+      'Họ_và_tên',
+      'EMAIL',
+      'số điện thoại',
+      'Ngày Sinh',
+      'giới-tính',
+      'MÃ CHI NHÁNH',
+    ];
+
+    const resolved = validator.validate(headers, STUDENT_IMPORT_DEFINITION);
+    expect(resolved).toEqual(STUDENT_HEADERS);
+  });
+
+  it('resolves every teacher Vietnamese header variant to its internal key', () => {
+    const headers = [
+      'Email',
+      'Họ và tên',
+      'Mã Giáo Viên',
+      'Chuyên môn',
+      'Bằng cấp',
+      'Giới thiệu',
+      'Ngày tuyển dụng',
+      'Giới Tính',
+      'Mã chi nhánh',
+    ];
+
+    expect(
+      validator.validate(headers, TEACHER_IMPORT_DEFINITION, {
+        ignoreUnexpected: true,
+      }),
+    ).toEqual([
+      'email',
+      'full_name',
+      'teacher_code',
+      'specialization',
+      'qualification',
+      'bio',
+      'hire_date',
+      'gender',
+      'branch_codes',
+    ]);
+  });
+
+  it('capitalizes unexpected Vietnamese headers in the error message', () => {
+    const headers = [
+      'Mã học viên',
+      'Họ và tên',
+      'Email',
+      'Số điện thoại',
+      'Ngày sinh',
+      'Giới tính',
+      'Mã chi nhánh',
+      'Tên',
+      'Địa chỉ nhà',
+    ];
+
+    expect(() =>
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION),
+    ).toThrow('Cột không hợp lệ: Tên, Địa chỉ nhà');
   });
 
   it('rejects a missing required header', () => {
+    const headers = STUDENT_HEADERS.filter(
+      (header) => header !== 'student_code',
+    );
+
+    expect(() =>
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION),
+    ).toThrow(BadRequestException);
+  });
+
+  it('reports the missing header with its Vietnamese label', () => {
     const headers = [
-      'student_code',
       'full_name',
       'email',
       'phone',
       'date_of_birth',
       'gender',
+      'branch_code',
     ];
 
-    expect(() => validator.validate(headers, EXPECTED_HEADERS)).toThrow(
-      BadRequestException,
-    );
+    expect(() =>
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION),
+    ).toThrow('Thiếu cột bắt buộc: Mã học viên');
   });
 
   it('rejects a duplicate header', () => {
@@ -93,42 +164,41 @@ describe('ImportHeaderValidator', () => {
       'branch_code',
     ];
 
-    expect(() => validator.validate(headers, EXPECTED_HEADERS)).toThrow(
-      BadRequestException,
-    );
+    expect(() =>
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION),
+    ).toThrow(BadRequestException);
   });
 
-  it('rejects an unexpected header', () => {
+  it('detects duplicates after normalization and mapping', () => {
     const headers = [
       'student_code',
       'full_name',
       'email',
       'phone',
       'date_of_birth',
-      'gender',
+      'Giới tính',
+      'GIỚI TÍNH',
       'branch_code',
-      'abc',
-    ];
-
-    expect(() => validator.validate(headers, EXPECTED_HEADERS)).toThrow(
-      BadRequestException,
-    );
-  });
-
-  it('ignores unexpected headers when ignoreUnexpected is enabled', () => {
-    const headers = [
-      'student_code',
-      'full_name',
-      'email',
-      'phone',
-      'date_of_birth',
-      'gender',
-      'branch_code',
-      'abc',
     ];
 
     expect(() =>
-      validator.validate(headers, EXPECTED_HEADERS, {
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION),
+    ).toThrow('Cột bị lặp: Giới tính');
+  });
+
+  it('rejects an unexpected header', () => {
+    const headers = [...STUDENT_HEADERS, 'abc'];
+
+    expect(() =>
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION),
+    ).toThrow(BadRequestException);
+  });
+
+  it('ignores unexpected headers when ignoreUnexpected is enabled', () => {
+    const headers = [...STUDENT_HEADERS, 'abc'];
+
+    expect(() =>
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION, {
         ignoreUnexpected: true,
       }),
     ).not.toThrow();
@@ -146,7 +216,7 @@ describe('ImportHeaderValidator', () => {
     ];
 
     expect(() =>
-      validator.validate(headers, EXPECTED_HEADERS, {
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION, {
         ignoreUnexpected: true,
       }),
     ).toThrow(BadRequestException);
@@ -165,7 +235,7 @@ describe('ImportHeaderValidator', () => {
     ];
 
     expect(() =>
-      validator.validate(headers, EXPECTED_HEADERS, {
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION, {
         ignoreUnexpected: true,
       }),
     ).toThrow(BadRequestException);
@@ -183,7 +253,9 @@ describe('ImportHeaderValidator', () => {
       'branch_code',
     ];
 
-    expect(() => validator.validate(headers, EXPECTED_HEADERS)).not.toThrow();
+    expect(() =>
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION),
+    ).not.toThrow();
   });
 
   it('ignores an empty header column when ignoreUnexpected is enabled', () => {
@@ -199,25 +271,17 @@ describe('ImportHeaderValidator', () => {
     ];
 
     expect(() =>
-      validator.validate(headers, EXPECTED_HEADERS, {
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION, {
         ignoreUnexpected: true,
       }),
     ).not.toThrow();
   });
 
   it('ignores empty trailing header cells', () => {
-    const headers = [
-      'student_code',
-      'full_name',
-      'email',
-      'phone',
-      'date_of_birth',
-      'gender',
-      'branch_code',
-      '',
-      '',
-    ];
+    const headers = [...STUDENT_HEADERS, '', ''];
 
-    expect(() => validator.validate(headers, EXPECTED_HEADERS)).not.toThrow();
+    expect(() =>
+      validator.validate(headers, STUDENT_IMPORT_DEFINITION),
+    ).not.toThrow();
   });
 });

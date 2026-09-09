@@ -2,8 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { FindManyOptions } from 'typeorm';
 
-import { Student, StudentGender } from '../entities/student.entity';
-import { User } from '../../users/entities/user.entity';
+import { Student } from '../entities/student.entity';
+import { Gender, User } from '../../users/entities/user.entity';
 import { Branch, BranchStatus } from '../../branches/entities/branch.entity';
 import { ImportRowResult } from '../../imports/types/import.types';
 import { StudentImportBusinessValidator } from './student-import.validator';
@@ -128,7 +128,6 @@ describe('StudentImportBusinessValidator', () => {
       studentsRepository.find.mockResolvedValue([
         Object.assign(new Student(), {
           studentCode: 'ST001',
-          gender: StudentGender.MALE,
         }),
       ]);
       usersRepository.find.mockResolvedValue([]);

@@ -21,6 +21,16 @@ const actorUserId = 'user-manager';
 function buildTeacher(
   overrides: Partial<Record<string, unknown>> = {},
 ): Teacher {
+  const user = overrides.user as
+    | {
+        id?: string;
+        fullName?: string;
+        email?: string;
+        gender?: string;
+        passwordHash?: string;
+        refreshTokens?: unknown[];
+      }
+    | undefined;
   return {
     id: 't-1',
     userId: 'u-1',
@@ -34,10 +44,10 @@ function buildTeacher(
     createdAt: new Date('2026-09-06T08:30:00.000Z'),
     updatedAt: new Date('2026-09-06T08:30:00.000Z'),
     user: {
-      id: 'u-1',
-      fullName: 'Nguyễn Văn A',
-      email: 'nguyenvana@gmail.com',
-      passwordHash: 'super-secret-hash',
+      id: user?.id ?? 'u-1',
+      fullName: user?.fullName ?? 'Nguyễn Văn A',
+      email: user?.email ?? 'nguyenvana@gmail.com',
+      gender: (overrides.gender as string) ?? user?.gender ?? 'MALE',
     },
     branches: [{ id: branchId, name: 'Chi nhánh Hà Nội' }],
     ...overrides,
@@ -293,7 +303,7 @@ describe('TeacherExportService', () => {
         expect.objectContaining({
           name: TEACHER_EXPORT_SHEET_NAME,
           headers: [...TEACHER_EXPORT_HEADERS],
-          wrapColumns: [5, 6, 8],
+          wrapColumns: [5, 6, 9],
         }),
       );
       expect(excelService.writeWorkbook).toHaveBeenCalledTimes(1);
@@ -315,6 +325,7 @@ describe('TeacherExportService', () => {
           'Cử nhân',
           'Giáo viên nhiều năm kinh nghiệm',
           '15/03/2020',
+          'Nam',
           'Chi nhánh Hà Nội',
           'Đang hoạt động',
           '06/09/2026 08:30',
@@ -334,7 +345,7 @@ describe('TeacherExportService', () => {
 
       const options = exportOptions();
       expect(options.rows[0][6]).toBe('15/03/2020');
-      expect(options.rows[0][9]).toBe('06/09/2026 08:30');
+      expect(options.rows[0][10]).toBe('06/09/2026 08:30');
     });
 
     it('labels status with the display name', async () => {
@@ -345,7 +356,18 @@ describe('TeacherExportService', () => {
       await service.export(actorUserId, {});
 
       const options = exportOptions();
-      expect(options.rows[0][8]).toBe('Ngừng hoạt động');
+      expect(options.rows[0][9]).toBe('Ngừng hoạt động');
+    });
+
+    it('labels gender with the display name', async () => {
+      queryBuilder.getMany.mockResolvedValue([
+        buildTeacher({ gender: 'FEMALE' }),
+      ]);
+
+      await service.export(actorUserId, {});
+
+      const options = exportOptions();
+      expect(options.rows[0][7]).toBe('Nữ');
     });
 
     it('never includes password hash or authentication data', async () => {
@@ -395,7 +417,7 @@ describe('TeacherExportService', () => {
       await service.export(actorUserId, {});
 
       const options = exportOptions();
-      expect(options.rows[0][7]).toBe('Hà Nội, Đà Nẵng');
+      expect(options.rows[0][8]).toBe('Hà Nội, Đà Nẵng');
     });
   });
 

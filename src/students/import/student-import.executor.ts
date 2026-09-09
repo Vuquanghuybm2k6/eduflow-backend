@@ -4,8 +4,8 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
-import { Student, StudentGender } from '../entities/student.entity';
-import { User } from '../../users/entities/user.entity';
+import { Student } from '../entities/student.entity';
+import { Gender, User } from '../../users/entities/user.entity';
 import { Role } from '../../roles/entities/role.entity';
 import { Membership } from '../../memberships/entities/membership.entity';
 import { Branch, BranchStatus } from '../../branches/entities/branch.entity';
@@ -25,14 +25,13 @@ export class StudentImportExecutor {
     private readonly usersRepository: Repository<User>,
   ) {}
 
-  async execute(
-    row: ImportJobRow,
-    organizationId: string,
-  ): Promise<void> {
+  async execute(row: ImportJobRow, organizationId: string): Promise<void> {
     const data = row.normalizedData;
 
     const studentCode = String(data['student_code'] || '').trim();
-    const email = String(data['email'] || '').trim().toLowerCase();
+    const email = String(data['email'] || '')
+      .trim()
+      .toLowerCase();
     const fullName = String(data['full_name'] || '').trim();
     const phone = data['phone'] ? String(data['phone']).trim() : null;
     const dateOfBirth = data['date_of_birth']
@@ -43,12 +42,7 @@ export class StudentImportExecutor {
 
     const genderEnum = this.resolveGender(gender);
 
-    await this.validateRowDb(
-      organizationId,
-      studentCode,
-      email,
-      branchCode,
-    );
+    await this.validateRowDb(organizationId, studentCode, email, branchCode);
 
     const branch = await this.branchesRepository.findOne({
       where: { organizationId, code: branchCode, status: BranchStatus.ACTIVE },
@@ -68,6 +62,7 @@ export class StudentImportExecutor {
           passwordHash,
           fullName,
           phone,
+          gender: genderEnum,
         }),
       );
 
@@ -90,7 +85,6 @@ export class StudentImportExecutor {
           organizationId,
           studentCode,
           dateOfBirth: dateOfBirth || null,
-          gender: genderEnum,
           branches: [branch],
         }),
       );
@@ -167,10 +161,10 @@ export class StudentImportExecutor {
     return 'EduFlow!' + password;
   }
 
-  private resolveGender(gender: string | null): StudentGender | null {
-    const knownGenders = Object.values(StudentGender) as string[];
+  private resolveGender(gender: string | null): Gender | null {
+    const knownGenders = Object.values(Gender) as string[];
     return gender && knownGenders.includes(gender)
-      ? (gender as StudentGender)
+      ? (gender as Gender)
       : null;
   }
 }

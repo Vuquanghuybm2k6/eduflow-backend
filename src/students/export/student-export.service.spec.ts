@@ -21,21 +21,31 @@ const actorUserId = 'user-manager';
 function buildStudent(
   overrides: Partial<Record<string, unknown>> = {},
 ): Student {
+  const user = overrides.user as
+    | {
+        id?: string;
+        fullName?: string;
+        email?: string;
+        gender?: string;
+        passwordHash?: string;
+        refreshTokens?: unknown[];
+      }
+    | undefined;
   return {
     id: 's-1',
     userId: 'u-1',
     organizationId,
     studentCode: 'HV-001',
     dateOfBirth: new Date('2020-03-15T00:00:00.000Z'),
-    gender: 'MALE',
     address: '12 Nguyễn Trãi, Hà Nội',
     status: 'ACTIVE',
     createdAt: new Date('2026-09-06T08:30:00.000Z'),
     updatedAt: new Date('2026-09-06T08:30:00.000Z'),
     user: {
-      id: 'u-1',
-      fullName: 'Nguyễn Văn A',
-      email: 'nguyenvana@gmail.com',
+      id: user?.id ?? 'u-1',
+      fullName: user?.fullName ?? 'Nguyễn Văn A',
+      email: user?.email ?? 'nguyenvana@gmail.com',
+      gender: (overrides.gender as string) ?? user?.gender ?? 'MALE',
     },
     branches: [{ id: branchId, name: 'Chi nhánh Hà Nội' }],
     ...overrides,
@@ -204,7 +214,7 @@ describe('StudentExportService', () => {
       await service.export(actorUserId, { gender: 'FEMALE' as const });
 
       expect(queryBuilder.andWhere).toHaveBeenCalledWith(
-        'student.gender = :gender',
+        'user.gender = :gender',
         { gender: 'FEMALE' },
       );
     });

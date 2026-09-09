@@ -163,9 +163,7 @@ export class SchedulesService {
     ]);
 
     if (!branch || branch.status !== BranchStatus.ACTIVE) {
-      throw new BadRequestException(
-        'Chi nhánh của lớp hiện không hoạt động',
-      );
+      throw new BadRequestException('Chi nhánh của lớp hiện không hoạt động');
     }
 
     if (!course || course.status !== CourseStatus.ACTIVE) {

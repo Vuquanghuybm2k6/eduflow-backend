@@ -11,10 +11,13 @@ import {
 } from '@nestjs/common';
 import { StudentsService } from './students.service';
 import { StudentExportService } from './export/student-export.service';
+import { StudentImportTemplateService } from './import/student-import-template.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateStudentStatusDto } from './dto/update-student-status.dto';
 import { ExportStudentsQueryDto } from './dto/export-students-query.dto';
+import { DownloadImportTemplateQueryDto } from '../imports/dto/download-import-template-query.dto';
+import { DEFAULT_IMPORT_TEMPLATE_LANGUAGE } from '../imports/import-template.constants';
 import { EXCEL_MIME_TYPE } from '../common/excel/excel.constants';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -25,6 +28,7 @@ export class StudentsController {
   constructor(
     private readonly studentsService: StudentsService,
     private readonly studentExportService: StudentExportService,
+    private readonly studentImportTemplateService: StudentImportTemplateService,
   ) {}
 
   @Post()
@@ -55,6 +59,23 @@ export class StudentsController {
       userId,
       query,
     );
+
+    return new StreamableFile(buffer, {
+      type: EXCEL_MIME_TYPE,
+      disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
+  @Get('import/template')
+  async downloadImportTemplate(
+    @CurrentUser('userId') userId: string,
+    @Query() query: DownloadImportTemplateQueryDto = {},
+  ): Promise<StreamableFile> {
+    const { buffer, filename } =
+      await this.studentImportTemplateService.download(
+        userId,
+        query.lang ?? DEFAULT_IMPORT_TEMPLATE_LANGUAGE,
+      );
 
     return new StreamableFile(buffer, {
       type: EXCEL_MIME_TYPE,

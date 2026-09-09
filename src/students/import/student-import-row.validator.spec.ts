@@ -42,6 +42,38 @@ describe('StudentImportRowValidator', () => {
     expect(results[0].values['gender']).toBe('MALE');
   });
 
+  it('normalizes Vietnamese gender values to the gender enum', () => {
+    const results = validator.validateRows([
+      row(2, {
+        student_code: 'ST001',
+        full_name: 'Nguyen Van A',
+        email: 'a@gmail.com',
+        branch_code: 'HN01',
+        gender: 'Nam',
+      }),
+      row(3, {
+        student_code: 'ST002',
+        full_name: 'Nguyen Thi B',
+        email: 'b@gmail.com',
+        branch_code: 'HN01',
+        gender: 'Nữ',
+      }),
+      row(4, {
+        student_code: 'ST003',
+        full_name: 'Nguyen Van C',
+        email: 'c@gmail.com',
+        branch_code: 'HN01',
+        gender: 'Khác',
+      }),
+    ]);
+
+    expect(results.map((r) => r.values['gender'])).toEqual([
+      'MALE',
+      'FEMALE',
+      'OTHER',
+    ]);
+  });
+
   it('rejects a row missing a required field', () => {
     const results = validator.validateRows([
       row(2, {
@@ -104,7 +136,10 @@ describe('StudentImportRowValidator', () => {
     expect(results[0].valid).toBe(false);
     expect(results[0].errors).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ field: 'email', message: 'Email phải có đuôi @gmail.com' }),
+        expect.objectContaining({
+          field: 'email',
+          message: 'Email phải có đuôi @gmail.com',
+        }),
       ]),
     );
   });

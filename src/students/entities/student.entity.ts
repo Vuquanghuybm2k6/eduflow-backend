@@ -23,12 +23,6 @@ export enum StudentStatus {
   INACTIVE = 'INACTIVE',
 }
 
-export enum StudentGender {
-  MALE = 'MALE',
-  FEMALE = 'FEMALE',
-  OTHER = 'OTHER',
-}
-
 @Entity('students')
 @Unique(['userId'])
 @Unique(['organizationId', 'studentCode'])
@@ -49,14 +43,6 @@ export class Student {
 
   @Column({ type: 'date', nullable: true })
   dateOfBirth!: Date | null;
-
-  @Column({
-    type: 'enum',
-    enum: StudentGender,
-    enumName: 'StudentGender',
-    nullable: true,
-  })
-  gender!: StudentGender | null;
 
   @Column({ type: 'text', nullable: true })
   address!: string | null;

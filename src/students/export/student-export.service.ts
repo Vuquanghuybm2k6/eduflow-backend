@@ -99,13 +99,13 @@ export class StudentExportService {
         'student.userId',
         'student.studentCode',
         'student.dateOfBirth',
-        'student.gender',
         'student.address',
         'student.status',
         'student.createdAt',
         'user.id',
         'user.fullName',
         'user.email',
+        'user.gender',
       ])
       .leftJoin('student.user', 'user')
       .leftJoinAndSelect('student.branches', 'branch')
@@ -127,7 +127,7 @@ export class StudentExportService {
     }
 
     if (query.gender) {
-      queryBuilder.andWhere('student.gender = :gender', {
+      queryBuilder.andWhere('user.gender = :gender', {
         gender: query.gender,
       });
     }
@@ -154,7 +154,7 @@ export class StudentExportService {
       user.fullName ?? '',
       user.email ?? '',
       student.dateOfBirth ? formatDateOnly(student.dateOfBirth) : '',
-      student.gender ? STUDENT_GENDER_LABELS[student.gender] : '',
+      user.gender ? STUDENT_GENDER_LABELS[user.gender] : '',
       branchNames.join(', '),
       STUDENT_STATUS_LABELS[student.status],
       student.address ?? '',

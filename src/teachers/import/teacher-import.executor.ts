@@ -4,7 +4,7 @@ import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
-import { User } from '../../users/entities/user.entity';
+import { Gender, User } from '../../users/entities/user.entity';
 import { Role } from '../../roles/entities/role.entity';
 import {
   Membership,
@@ -40,6 +40,7 @@ export class TeacherImportExecutor {
     const qualification = this.readOptionalString(data['qualification']);
     const bio = this.readOptionalString(data['bio']);
     const hireDate = this.readOptionalString(data['hire_date']);
+    const gender = this.readOptionalString(data['gender']);
     const branchCodes = this.readBranchCodes(data['branch_codes']);
 
     await this.validateRowDb(organizationId, teacherCode, email, branchCodes);
@@ -60,6 +61,7 @@ export class TeacherImportExecutor {
           passwordHash,
           fullName,
           phone: null,
+          gender: this.resolveGender(gender),
         }),
       );
 
@@ -226,6 +228,16 @@ export class TeacherImportExecutor {
     }
 
     return null;
+  }
+
+  private resolveGender(gender: string | null): Gender | null {
+    if (!gender) {
+      return null;
+    }
+
+    const knownGenders = Object.values(Gender) as string[];
+
+    return knownGenders.includes(gender) ? (gender as Gender) : null;
   }
 
   private generateTemporaryPassword(): string {

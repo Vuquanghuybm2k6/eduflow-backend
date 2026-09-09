@@ -1,19 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import {
-  BadRequestException,
-  ConflictException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { EnrollmentsService } from './enrollments.service';
-import {
-  Enrollment,
-  EnrollmentStatus,
-} from './entities/enrollment.entity';
+import { Enrollment, EnrollmentStatus } from './entities/enrollment.entity';
 import { Membership } from '../memberships/entities/membership.entity';
-import {
-  Student,
-  StudentStatus,
-} from '../students/entities/student.entity';
+import { Student, StudentStatus } from '../students/entities/student.entity';
 import {
   Class,
   ClassLifecycleStatus,
@@ -90,7 +81,7 @@ describe('EnrollmentsService', () => {
         id: 's-1',
         organizationId: 'org-1',
         status: StudentStatus.ACTIVE,
-      } as Student);
+      });
       classesRepo.findOneBy.mockResolvedValue({
         id: 'c-1',
         organizationId: 'org-1',
@@ -98,12 +89,12 @@ describe('EnrollmentsService', () => {
         lifecycleStatus: ClassLifecycleStatus.UPCOMING,
         endDate: '2030-01-01',
         capacity: 10,
-      } as Class);
+      });
       enrollmentsRepo.findOneBy.mockResolvedValue(null);
     });
 
     it('throws ConflictException when the student is already enrolled in the class', async () => {
-      enrollmentsRepo.findOneBy.mockResolvedValue({ id: 'e-1' } as Enrollment);
+      enrollmentsRepo.findOneBy.mockResolvedValue({ id: 'e-1' });
 
       await expect(
         service.create('user-1', { studentId: 's-1', classId: 'c-1' }),
@@ -149,7 +140,7 @@ describe('EnrollmentsService', () => {
       enrollmentQueryBuilder.getOne.mockResolvedValue({
         id: 'e-1',
         status: EnrollmentStatus.COMPLETED,
-      } as Enrollment);
+      });
 
       await expect(
         service.updateStatus('user-1', 'e-1', {
@@ -163,7 +154,7 @@ describe('EnrollmentsService', () => {
       enrollmentQueryBuilder.getOne.mockResolvedValue({
         id: 'e-1',
         status: EnrollmentStatus.CANCELLED,
-      } as Enrollment);
+      });
 
       await expect(
         service.updateStatus('user-1', 'e-1', {
@@ -177,12 +168,12 @@ describe('EnrollmentsService', () => {
       enrollmentQueryBuilder.getOne.mockResolvedValue({
         id: 'e-1',
         status: EnrollmentStatus.ACTIVE,
-      } as Enrollment);
+      });
       enrollmentsRepo.save.mockImplementation((e) => ({ ...e }));
       enrollmentsRepo.findOne.mockResolvedValue({
         id: 'e-1',
         status: EnrollmentStatus.CANCELLED,
-      } as Enrollment);
+      });
 
       const result = await service.updateStatus('user-1', 'e-1', {
         status: EnrollmentStatus.CANCELLED,
@@ -200,12 +191,12 @@ describe('EnrollmentsService', () => {
       enrollmentQueryBuilder.getOne.mockResolvedValue({
         id: 'e-1',
         status: EnrollmentStatus.ACTIVE,
-      } as Enrollment);
+      });
       enrollmentsRepo.save.mockImplementation((e) => ({ ...e }));
       enrollmentsRepo.findOne.mockResolvedValue({
         id: 'e-1',
         status: EnrollmentStatus.CANCELLED,
-      } as Enrollment);
+      });
 
       const result = await service.remove('user-1', 'e-1');
 
@@ -220,7 +211,7 @@ describe('EnrollmentsService', () => {
       enrollmentQueryBuilder.getOne.mockResolvedValue({
         id: 'e-1',
         status: EnrollmentStatus.COMPLETED,
-      } as Enrollment);
+      });
 
       await expect(service.remove('user-1', 'e-1')).rejects.toBeInstanceOf(
         ConflictException,

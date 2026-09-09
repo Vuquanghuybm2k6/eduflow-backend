@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StudentsService } from './students.service';
 import { StudentsController } from './students.controller';
 import { StudentExportService } from './export/student-export.service';
+import { StudentImportTemplateService } from './import/student-import-template.service';
 import { StudentImportExecutor } from './import/student-import.executor';
 import {
   StudentImportBusinessValidator,
@@ -25,6 +26,7 @@ import { AuthModule } from '../auth/auth.module';
   providers: [
     StudentsService,
     StudentExportService,
+    StudentImportTemplateService,
     StudentImportExecutor,
     StudentImportRowValidator,
     StudentImportBusinessValidator,
@@ -32,6 +34,7 @@ import { AuthModule } from '../auth/auth.module';
   exports: [
     StudentsService,
     StudentExportService,
+    StudentImportTemplateService,
     StudentImportExecutor,
     StudentImportRowValidator,
     StudentImportBusinessValidator,

@@ -221,6 +221,7 @@ export class TeachersService {
           passwordHash,
           fullName: createTeacherDto.fullName,
           phone: createTeacherDto.phone ?? null,
+          gender: createTeacherDto.gender ?? null,
         }),
       );
 
@@ -356,9 +357,18 @@ export class TeachersService {
       teacher.branches = branches;
     }
 
-    const { branchIds: _branchIds, ...fields } = updateTeacherDto;
+    const { branchIds: _branchIds, gender, ...fields } = updateTeacherDto;
     Object.assign(teacher, fields);
-    return this.teachersRepository.save(teacher);
+
+    if (gender !== undefined && teacher.user) {
+      teacher.user.gender = gender ?? null;
+    }
+
+    await this.teachersRepository.save(teacher);
+    if (gender !== undefined && teacher.user) {
+      await this.usersRepository.save(teacher.user);
+    }
+    return teacher;
   }
 
   async updateStatus(

@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { TeachersService } from './teachers.service';
 import { TeachersController } from './teachers.controller';
 import { TeacherExportService } from './export/teacher-export.service';
+import { TeacherImportTemplateService } from './import/teacher-import-template.service';
 import {
   TeacherImportBusinessValidator,
   TeacherImportRowValidator,
@@ -26,6 +27,7 @@ import { ExcelModule } from '../common/excel/excel.module';
   providers: [
     TeachersService,
     TeacherExportService,
+    TeacherImportTemplateService,
     TeacherImportRowValidator,
     TeacherImportBusinessValidator,
     TeacherImportExecutor,
@@ -33,6 +35,7 @@ import { ExcelModule } from '../common/excel/excel.module';
   exports: [
     TeachersService,
     TeacherExportService,
+    TeacherImportTemplateService,
     TeacherImportRowValidator,
     TeacherImportBusinessValidator,
     TeacherImportExecutor,

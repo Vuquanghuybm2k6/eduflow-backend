@@ -4,12 +4,20 @@ import request from 'supertest';
 import { TeachersController } from './teachers.controller';
 import { TeachersService } from './teachers.service';
 import { TeacherExportService } from './export/teacher-export.service';
+import { TeacherImportTemplateService } from './import/teacher-import-template.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 const exportServiceMock = {
   export: jest.fn().mockResolvedValue({
     buffer: Buffer.from('fake-xlsx-bytes'),
     filename: 'teachers-2026-09-04.xlsx',
+  }),
+};
+
+const templateServiceMock = {
+  download: jest.fn().mockResolvedValue({
+    buffer: Buffer.from('fake-template-xlsx-bytes'),
+    filename: 'teacher-import-sample-vi.xlsx',
   }),
 };
 
@@ -34,6 +42,10 @@ describe('TeachersController', () => {
       providers: [
         { provide: TeachersService, useValue: serviceStub },
         { provide: TeacherExportService, useValue: exportServiceMock },
+        {
+          provide: TeacherImportTemplateService,
+          useValue: templateServiceMock,
+        },
       ],
     }).compile();
 
@@ -68,6 +80,16 @@ describe('TeachersController', () => {
     };
     await controller.exportTeachers('user-1', query);
     expect(exportServiceMock.export).toHaveBeenCalledWith('user-1', query);
+  });
+
+  it('GET /teachers/import/template delegates to teacherImportTemplateService.download', async () => {
+    await controller.downloadImportTemplate('user-1');
+    expect(templateServiceMock.download).toHaveBeenCalledWith('user-1', 'vi');
+  });
+
+  it('passes the requested language to teacherImportTemplateService.download', async () => {
+    await controller.downloadImportTemplate('user-1', { lang: 'en' });
+    expect(templateServiceMock.download).toHaveBeenCalledWith('user-1', 'en');
   });
 
   it('GET /teachers/me delegates to service.findMe', async () => {
@@ -117,6 +139,10 @@ describe('TeachersController /teachers/export (http)', () => {
       providers: [
         { provide: TeachersService, useValue: {} },
         { provide: TeacherExportService, useValue: exportServiceMock },
+        {
+          provide: TeacherImportTemplateService,
+          useValue: templateServiceMock,
+        },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -193,5 +219,22 @@ describe('TeachersController /teachers/export (http)', () => {
       status: 'ACTIVE',
       branchId: '11111111-2222-4333-8444-555555555555',
     });
+  });
+
+  it('GET /teachers/import/template returns an xlsx attachment with a safe filename', async () => {
+    templateServiceMock.download.mockClear();
+
+    const res = await request(app.getHttpServer()).get(
+      '/teachers/import/template',
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="teacher-import-sample-vi.xlsx"',
+    );
+    expect(templateServiceMock.download).toHaveBeenCalledWith(undefined, 'vi');
   });
 });

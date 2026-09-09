@@ -4,8 +4,9 @@ import { In, Repository } from 'typeorm';
 
 import { Branch, BranchStatus } from '../../branches/entities/branch.entity';
 import { Teacher } from '../entities/teacher.entity';
-import { User } from '../../users/entities/user.entity';
+import { Gender, User } from '../../users/entities/user.entity';
 import { ImportParsedRow } from '../../imports/types/import.types';
+import { normalizeGenderValue } from '../../imports/utils/gender.utils';
 import {
   TEACHER_IMPORT_EMAIL_PATTERN,
   TEACHER_IMPORT_DATE_PATTERN,
@@ -42,6 +43,7 @@ export class TeacherImportRowValidator {
         qualification: null,
         bio: null,
         hire_date: null,
+        gender: null,
         branch_codes: [],
       };
 
@@ -98,6 +100,8 @@ export class TeacherImportRowValidator {
           errors.push(errorOf('hire_date', 'Ngày tuyển dụng không hợp lệ'));
         }
       }
+
+      data.gender = this.normalizeGender(row.data['gender'], errors);
 
       const branchCodes = this.parseBranchCodes(row.data['branch_codes']);
       this.validateBranchCodes(branchCodes, errors);
@@ -283,6 +287,24 @@ export class TeacherImportRowValidator {
     }
 
     return '';
+  }
+
+  private normalizeGender(
+    raw: unknown,
+    errors: TeacherImportRowError[],
+  ): Gender | null {
+    if (!this.hasValue(raw)) {
+      return null;
+    }
+
+    const normalized = normalizeGenderValue(raw);
+
+    if (!normalized) {
+      errors.push(errorOf('gender', 'Giới tính không hợp lệ'));
+      return null;
+    }
+
+    return normalized;
   }
 
   private normalizeDate(raw: unknown): string | null {

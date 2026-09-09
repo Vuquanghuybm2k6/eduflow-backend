@@ -2,13 +2,25 @@ import {
   isEmptyRow,
   normalizeCellValue,
   normalizeHeader,
+  readHeaderText,
   sanitizeExcelString,
 } from './excel.utils';
 
 describe('excel.utils', () => {
   describe('normalizeHeader', () => {
-    it('should convert a value to a trimmed string', () => {
-      expect(normalizeHeader(' student_code ')).toBe('student_code');
+    it('should trim, lowercase and merge duplicate spaces', () => {
+      expect(normalizeHeader('  Student_Code  ')).toBe('student code');
+      expect(normalizeHeader('Mã   Học Viên')).toBe('mã học viên');
+    });
+
+    it('should convert underscore and dash separators to a single space', () => {
+      expect(normalizeHeader('mã_học_viên')).toBe('mã học viên');
+      expect(normalizeHeader('mã-học-viên')).toBe('mã học viên');
+    });
+
+    it('should keep Vietnamese diacritics when lowercasing', () => {
+      expect(normalizeHeader('GIỚI TÍNH')).toBe('giới tính');
+      expect(normalizeHeader('Ngày sinh')).toBe('ngày sinh');
     });
 
     it('should convert non-string values to strings', () => {
@@ -18,6 +30,39 @@ describe('excel.utils', () => {
     it('should convert nullish values to an empty string', () => {
       expect(normalizeHeader(null)).toBe('');
       expect(normalizeHeader(undefined)).toBe('');
+    });
+  });
+
+  describe('readHeaderText', () => {
+    it('should trim but keep the original casing and separators', () => {
+      expect(readHeaderText('  GIỚI_TÍNH  ')).toBe('GIỚI_TÍNH');
+      expect(readHeaderText('Mã học viên')).toBe('Mã học viên');
+    });
+
+    it('should unwrap hyperlink cells to their text', () => {
+      expect(
+        readHeaderText({
+          text: '  Mã học viên  ',
+          hyperlink: 'http://example.com',
+        }),
+      ).toBe('Mã học viên');
+    });
+
+    it('should unwrap rich text cells to their concatenated text', () => {
+      expect(
+        readHeaderText({
+          richText: [{ text: 'Giới ' }, { text: 'tính' }],
+        }),
+      ).toBe('Giới tính');
+    });
+
+    it('should convert non-string values to strings', () => {
+      expect(readHeaderText(123)).toBe('123');
+    });
+
+    it('should convert nullish values to an empty string', () => {
+      expect(readHeaderText(null)).toBe('');
+      expect(readHeaderText(undefined)).toBe('');
     });
   });
 
@@ -70,7 +115,7 @@ describe('excel.utils', () => {
       expect(sanitizeExcelString('=1+1')).toBe("'=1+1");
       expect(sanitizeExcelString('+84900000')).toBe("'+84900000");
       expect(sanitizeExcelString('-2+3')).toBe("'-2+3");
-      expect(sanitizeExcelString('@import "x"')).toBe("'@import \"x\"");
+      expect(sanitizeExcelString('@import "x"')).toBe('\'@import "x"');
     });
 
     it('should prefix values that only start with a formula character after whitespace', () => {

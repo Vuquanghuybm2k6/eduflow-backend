@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
-import { normalizeHeader } from '../../common/excel/excel.utils';
+import type { ImportDefinition } from '../definitions/import-field';
+import {
+  buildImportHeaderLookup,
+  resolveImportHeader,
+} from '../definitions/import-field';
 
 export interface ImportHeaderValidatorOptions {
   ignoreUnexpected?: boolean;
@@ -9,29 +13,35 @@ export interface ImportHeaderValidatorOptions {
 @Injectable()
 export class ImportHeaderValidator {
   validate(
-    headers: string[],
-    expectedHeaders: readonly string[],
+    rawHeaders: readonly unknown[],
+    definition: ImportDefinition,
     options: ImportHeaderValidatorOptions = {},
-  ): void {
-    const normalized = headers.map((header) =>
-      normalizeHeader(header).toLowerCase(),
-    );
-    const present = normalized.filter((header) => header !== '');
+  ): string[] {
+    const lookup = buildImportHeaderLookup(definition);
+    const fieldKeys = new Set(definition.fields.map((field) => field.key));
 
-    const missing = expectedHeaders.filter(
-      (required) => !present.includes(required),
+    const resolved = rawHeaders.map((header) =>
+      resolveImportHeader(header, definition, lookup),
+    );
+    const present = resolved.filter((header) => header !== '');
+
+    const missing = definition.fields.filter(
+      (field) => !present.includes(field.key),
     );
 
     if (missing.length > 0) {
       throw new BadRequestException(
-        `Thiếu cột bắt buộc: ${missing.join(', ')}`,
+        `Thiếu cột bắt buộc: ${missing.map((field) => field.label).join(', ')}`,
       );
     }
 
     if (!options.ignoreUnexpected) {
-      const unexpected = present.filter(
-        (header) => !expectedHeaders.includes(header),
-      );
+      const unexpected = resolved
+        .map((header, index) =>
+          header !== '' && !fieldKeys.has(header) ? index : -1,
+        )
+        .filter((index) => index >= 0)
+        .map((index) => String(rawHeaders[index]).trim());
 
       if (unexpected.length > 0) {
         throw new BadRequestException(
@@ -41,17 +51,29 @@ export class ImportHeaderValidator {
     }
 
     const seen = new Set<string>();
-    const duplicates: string[] = [];
+    const duplicateKeys: string[] = [];
 
     for (const header of present) {
+      if (!fieldKeys.has(header)) {
+        continue;
+      }
+
       if (seen.has(header)) {
-        duplicates.push(header);
+        duplicateKeys.push(header);
       }
       seen.add(header);
     }
 
-    if (duplicates.length > 0) {
-      throw new BadRequestException(`Cột bị lặp: ${duplicates.join(', ')}`);
+    if (duplicateKeys.length > 0) {
+      const labelFor = new Map(
+        definition.fields.map((field) => [field.key, field.label]),
+      );
+      const fileName = duplicateKeys
+        .map((key) => labelFor.get(key) ?? key)
+        .join(', ');
+      throw new BadRequestException(`Cột bị lặp: ${fileName}`);
     }
+
+    return resolved;
   }
 }

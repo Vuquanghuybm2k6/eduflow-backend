@@ -13,6 +13,12 @@ import { RefreshToken } from '../../auth/entities/refresh-token.entity';
 import { Teacher } from '../../teachers/entities/teacher.entity';
 import { Student } from '../../students/entities/student.entity';
 
+export enum Gender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE',
+  OTHER = 'OTHER',
+}
+
 export enum UserStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
@@ -35,6 +41,14 @@ export class User {
 
   @Column({ type: 'text', nullable: true })
   phone!: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: Gender,
+    enumName: 'Gender',
+    nullable: true,
+  })
+  gender!: Gender | null;
 
   @Column({ type: 'text', nullable: true })
   avatarUrl!: string | null;
