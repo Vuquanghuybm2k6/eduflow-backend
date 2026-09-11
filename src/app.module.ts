@@ -17,6 +17,7 @@ import { TeachersModule } from './teachers/teachers.module';
 import { StudentsModule } from './students/students.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { SchedulesModule } from './schedules/schedules.module';
+import { ClassSessionsModule } from './sessions/sessions.module';
 import { ExcelModule } from './common/excel/excel.module';
 import { ImportsModule } from './imports/imports.module';
 @Module({
@@ -46,6 +47,7 @@ import { ImportsModule } from './imports/imports.module';
     StudentsModule,
     EnrollmentsModule,
     SchedulesModule,
+    ClassSessionsModule,
     ExcelModule,
     ImportsModule,
   ],

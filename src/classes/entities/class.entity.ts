@@ -17,6 +17,7 @@ import { Course } from '../../courses/entities/course.entity';
 import { Teacher } from '../../teachers/entities/teacher.entity';
 import { Enrollment } from '../../enrollments/entities/enrollment.entity';
 import { Schedule } from '../../schedules/entities/schedule.entity';
+import { ClassSession } from '../../sessions/entities/class-session.entity';
 
 export enum ClassStatus {
   ACTIVE = 'ACTIVE',
@@ -132,4 +133,7 @@ export class Class {
 
   @OneToMany(() => Schedule, (schedule) => schedule.class)
   schedules!: Schedule[];
+
+  @OneToMany(() => ClassSession, (session) => session.class)
+  sessions!: ClassSession[];
 }
