@@ -325,7 +325,12 @@ export class AttendanceService {
     dto: UpdateAttendanceDto,
     options: OrgContextOptions = {},
   ): Promise<AttendanceUpdateSummary> {
-    console.log('[Attendance PUT] incoming userId=%s, sessionId=%s, org=%s', userId, sessionId, options.organizationId);
+    console.log(
+      '[Attendance PUT] incoming userId=%s, sessionId=%s, org=%s',
+      userId,
+      sessionId,
+      options.organizationId,
+    );
     const organizationId = await this.resolveOrganizationId(
       userId,
       options.organizationId,
@@ -342,7 +347,12 @@ export class AttendanceService {
 
     const role = await this.resolveRoleKind(userId, organizationId);
 
-    console.log('[Attendance PUT] userId=%s, role=%s, sessionId=%s', userId, role, sessionId);
+    console.log(
+      '[Attendance PUT] userId=%s, role=%s, sessionId=%s',
+      userId,
+      role,
+      sessionId,
+    );
 
     if (role === 'teacher') {
       const teacher = await this.resolveTeacher(userId, organizationId);

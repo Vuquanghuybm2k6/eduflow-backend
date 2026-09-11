@@ -21,6 +21,8 @@ import { ClassSessionsModule } from './sessions/sessions.module';
 import { ExcelModule } from './common/excel/excel.module';
 import { ImportsModule } from './imports/imports.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { ReportsModule } from './reports/reports.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -52,6 +54,8 @@ import { AttendanceModule } from './attendance/attendance.module';
     ExcelModule,
     ImportsModule,
     AttendanceModule,
+    ReportsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
