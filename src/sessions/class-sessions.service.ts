@@ -20,6 +20,7 @@ import { Membership } from '../memberships/entities/membership.entity';
 import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
+import { Attendance } from '../attendance/entities/attendance.entity';
 
 export interface OrgContextOptions {
   organizationId?: string;
@@ -56,6 +57,8 @@ export class ClassSessionsService {
     private readonly schedulesRepository: Repository<Schedule>,
     @InjectRepository(Membership)
     private readonly membershipsRepository: Repository<Membership>,
+    @InjectRepository(Attendance)
+    private readonly attendancesRepository: Repository<Attendance>,
   ) {}
 
   private async resolveOrganizationId(
@@ -424,7 +427,25 @@ export class ClassSessionsService {
     );
 
     const sessions = await qb.getMany();
-    return sessions.map((session) => this.toSessionResponse(session));
+
+    let sessionIdsWithAttendance = new Set<string>();
+    if (sessions.length > 0) {
+      const attendanceRows = await this.attendancesRepository
+        .createQueryBuilder('attendance')
+        .select('attendance.session_id', 'sessionId')
+        .where('attendance.session_id IN (:...ids)', {
+          ids: sessions.map((session) => session.id),
+        })
+        .getRawMany<{ sessionId: string }>();
+      sessionIdsWithAttendance = new Set(
+        attendanceRows.map((row) => row.sessionId),
+      );
+    }
+
+    return sessions.map((session) => ({
+      ...this.toSessionResponse(session),
+      hasAttendance: sessionIdsWithAttendance.has(session.id),
+    }));
   }
 
   async findOne(

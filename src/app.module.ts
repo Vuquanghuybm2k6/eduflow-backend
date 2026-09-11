@@ -20,6 +20,7 @@ import { SchedulesModule } from './schedules/schedules.module';
 import { ClassSessionsModule } from './sessions/sessions.module';
 import { ExcelModule } from './common/excel/excel.module';
 import { ImportsModule } from './imports/imports.module';
+import { AttendanceModule } from './attendance/attendance.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -50,6 +51,7 @@ import { ImportsModule } from './imports/imports.module';
     ClassSessionsModule,
     ExcelModule,
     ImportsModule,
+    AttendanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

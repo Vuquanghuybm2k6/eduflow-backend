@@ -18,6 +18,7 @@ import {
 } from '../classes/entities/class.entity';
 import { DayOfWeek, Schedule } from '../schedules/entities/schedule.entity';
 import { Membership } from '../memberships/entities/membership.entity';
+import { Attendance } from '../attendance/entities/attendance.entity';
 
 const userId = 'user-1';
 const organizationId = 'org-1';
@@ -55,6 +56,14 @@ function buildSessionQueryBuilderMock() {
   };
 }
 
+function buildAttendanceQueryBuilderMock(rows: { sessionId: string }[] = []) {
+  return {
+    select: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    getRawMany: jest.fn().mockResolvedValue(rows),
+  };
+}
+
 function buildActiveClass(overrides: Partial<Class> = {}): Class {
   return {
     id: classId,
@@ -88,6 +97,7 @@ describe('ClassSessionsService', () => {
   let classesRepo: jest.Mocked<Partial<Repository<Class>>>;
   let schedulesRepo: jest.Mocked<Partial<Repository<Schedule>>>;
   let membershipsRepo: jest.Mocked<Partial<Repository<Membership>>>;
+  let attendancesRepo: jest.Mocked<Partial<Repository<Attendance>>>;
 
   beforeEach(async () => {
     membershipsRepo = {
@@ -116,6 +126,10 @@ describe('ClassSessionsService', () => {
       createQueryBuilder: jest.fn(() => buildSessionQueryBuilderMock()),
     };
 
+    attendancesRepo = {
+      createQueryBuilder: jest.fn(() => buildAttendanceQueryBuilderMock()),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ClassSessionsService,
@@ -126,6 +140,7 @@ describe('ClassSessionsService', () => {
         { provide: getRepositoryToken(Class), useValue: classesRepo },
         { provide: getRepositoryToken(Schedule), useValue: schedulesRepo },
         { provide: getRepositoryToken(Membership), useValue: membershipsRepo },
+        { provide: getRepositoryToken(Attendance), useValue: attendancesRepo },
       ],
     }).compile();
 
@@ -367,6 +382,9 @@ describe('ClassSessionsService', () => {
       const qb = buildSessionQueryBuilderMock();
       qb.getMany.mockResolvedValue([session]);
       classSessionsRepo.createQueryBuilder.mockReturnValue(qb);
+      attendancesRepo.createQueryBuilder.mockReturnValue(
+        buildAttendanceQueryBuilderMock([{ sessionId: 'session-1' }]),
+      );
 
       const result = await service.findAll(userId, classId, {});
 
@@ -384,6 +402,7 @@ describe('ClassSessionsService', () => {
           status: ClassSessionStatus.SCHEDULED,
           note: null,
           teacher: { id: teacherId, name: 'Teacher One' },
+          hasAttendance: true,
         },
       ]);
     });
@@ -419,6 +438,7 @@ describe('ClassSessionsService', () => {
       const result = await service.findAll(userId, classId, {});
 
       expect(result[0].teacher).toBeNull();
+      expect(result[0].hasAttendance).toBe(false);
     });
 
     it('rejects when the class does not exist', async () => {

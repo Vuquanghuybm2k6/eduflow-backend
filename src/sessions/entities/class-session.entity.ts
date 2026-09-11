@@ -51,7 +51,7 @@ export class ClassSession {
   @Column({ name: 'room', type: 'varchar', length: 100, nullable: true })
   room!: string | null;
 
-  @Column({
+  @Column({ // buổi học này thuộc loại gì
     name: 'type',
     type: 'enum',
     enum: ClassSessionType,
@@ -60,7 +60,7 @@ export class ClassSession {
   })
   type!: ClassSessionType;
 
-  @Column({
+  @Column({ // hiện tại buổi học này đang thuộc trạng thái gì
     name: 'status',
     type: 'enum',
     enum: ClassSessionStatus,
