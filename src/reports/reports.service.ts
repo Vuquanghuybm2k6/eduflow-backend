@@ -2,11 +2,16 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 
-import { Class } from '../classes/entities/class.entity';
+import {
+  Class,
+  ClassLifecycleStatus,
+  ClassStatus,
+} from '../classes/entities/class.entity';
 import { Student } from '../students/entities/student.entity';
 import { ClassSession } from '../sessions/entities/class-session.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
 import { AttendanceStatus } from '../attendance/enums/attendance-status.enum';
+import { DayOfWeek } from '../schedules/entities/schedule.entity';
 import {
   Membership,
   MembershipStatus,
@@ -80,6 +85,95 @@ interface AttendanceHistoryRawRow {
   status: string | null;
   note: string | null;
 }
+
+export interface ClassAttendanceCard {
+  id: string;
+  name: string;
+  code: string;
+  courseName: string;
+  branchName: string;
+  teacherName: string | null;
+  studentCount: number;
+  capacity: number;
+  scheduleDays: string[];
+  scheduleTimeStart: string | null;
+  scheduleTimeEnd: string | null;
+  lifecycleStatus: ClassLifecycleStatus;
+  startDate: string;
+  endDate: string;
+}
+
+export interface ClassAttendanceCardsResponse {
+  items: ClassAttendanceCard[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface ClassAttendanceCardsOptions extends OrgContextOptions {
+  search?: string;
+  branchId?: string;
+  teacherId?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface ClassStudentAttendanceRow {
+  studentId: string;
+  studentCode: string;
+  fullName: string;
+  totalSessions: number;
+  recordedSessions: number;
+  present: number;
+  late: number;
+  absent: number;
+  excused: number;
+  attendedSessions: number;
+  missedSessions: number;
+  attendanceRate: number | null;
+}
+
+export interface ClassStudentsAttendanceResponse {
+  classId: string;
+  className: string;
+  classCode: string;
+  teacher: { id: string; name: string } | null;
+  totalStudents: number;
+  rows: ClassStudentAttendanceRow[];
+}
+
+export interface ClassStudentsAttendanceOptions extends OrgContextOptions {
+  startDate?: string;
+  endDate?: string;
+}
+
+interface StudentAttendanceStats {
+  recordedSessions: number;
+  present: number;
+  late: number;
+  absent: number;
+  excused: number;
+}
+
+const DAY_SHORT_LABELS: Record<DayOfWeek, string> = {
+  MONDAY: 'T2',
+  TUESDAY: 'T3',
+  WEDNESDAY: 'T4',
+  THURSDAY: 'T5',
+  FRIDAY: 'T6',
+  SATURDAY: 'T7',
+  SUNDAY: 'CN',
+};
+
+const DAY_ORDER: Record<DayOfWeek, number> = {
+  MONDAY: 0,
+  TUESDAY: 1,
+  WEDNESDAY: 2,
+  THURSDAY: 3,
+  FRIDAY: 4,
+  SATURDAY: 5,
+  SUNDAY: 6,
+};
 
 @Injectable()
 export class ReportsService {
@@ -410,6 +504,335 @@ export class ReportsService {
     }));
 
     return { studentId, items, total, page, limit };
+  }
+
+  async getClassAttendanceCards(
+    userId: string,
+    options: OrgContextOptions = {},
+    filters: ClassAttendanceCardsOptions = {},
+  ): Promise<ClassAttendanceCardsResponse> {
+    const organizationId = await this.resolveOrganizationId(
+      userId,
+      options.organizationId,
+    );
+
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 10;
+    const search = (filters.search ?? '').trim();
+
+    const qb = this.classesRepository
+      .createQueryBuilder('class')
+      .innerJoinAndSelect('class.branch', 'branch')
+      .innerJoinAndSelect('class.course', 'course')
+      .leftJoinAndSelect('class.teacher', 'teacher')
+      .leftJoinAndSelect('teacher.user', 'teacherUser')
+      .leftJoinAndSelect('class.schedules', 'schedule')
+      .where('class.organizationId = :organizationId', { organizationId })
+      .andWhere('class.status = :status', { status: ClassStatus.ACTIVE });
+
+    if (filters.branchId) {
+      qb.andWhere('class.branchId = :branchId', {
+        branchId: filters.branchId,
+      });
+    }
+
+    if (filters.teacherId) {
+      qb.andWhere('class.teacherId = :teacherId', {
+        teacherId: filters.teacherId,
+      });
+    }
+
+    if (search) {
+      qb.andWhere(
+        '(class.name ILIKE :search OR class.code ILIKE :search OR course.name ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    qb.orderBy('class.createdAt', 'DESC');
+
+    const classes = await qb.getMany();
+    const counts = await this.getActiveStudentCountsByClass(
+      organizationId,
+      classes.map((classEntity) => classEntity.id),
+    );
+
+    const items = classes.map((classEntity) =>
+      this.toClassAttendanceCard(classEntity, counts.get(classEntity.id) ?? 0),
+    );
+
+    const total = items.length;
+    const offset = (page - 1) * limit;
+
+    return {
+      items: items.slice(offset, offset + limit),
+      total,
+      page,
+      limit,
+    };
+  }
+
+  async getClassStudentsAttendance(
+    userId: string,
+    classId: string,
+    options: ClassStudentsAttendanceOptions = {},
+  ): Promise<ClassStudentsAttendanceResponse> {
+    const organizationId = await this.resolveOrganizationId(
+      userId,
+      options.organizationId,
+    );
+
+    const classEntity = await this.classesRepository.findOne({
+      where: { id: classId, organizationId },
+      relations: { teacher: { user: true } },
+    });
+
+    if (!classEntity) {
+      throw new NotFoundException('Class not found');
+    }
+
+    const enrollments = await this.enrollmentsRepository.find({
+      where: { classId, status: EnrollmentStatus.ACTIVE },
+      relations: { student: { user: true } },
+      order: { enrolledAt: 'ASC' },
+    });
+
+    const sessionQb = this.sessionsRepository
+      .createQueryBuilder('session')
+      .where('session.classId = :classId', { classId })
+      .andWhere('session.organizationId = :organizationId', { organizationId })
+      .andWhere('session.sessionDate <= :today', { today: this.todayDate() });
+
+    if (options.startDate) {
+      sessionQb.andWhere('session.sessionDate >= :startDate', {
+        startDate: options.startDate,
+      });
+    }
+
+    if (options.endDate) {
+      sessionQb.andWhere('session.sessionDate <= :endDate', {
+        endDate: options.endDate,
+      });
+    }
+
+    const sessions = await sessionQb.getMany();
+    const sessionIds = sessions.map((session) => session.id);
+    const totalSessions = sessionIds.length;
+
+    const statsByStudent =
+      sessionIds.length > 0
+        ? await this.aggregateClassAttendanceByStudent(
+            organizationId,
+            sessionIds,
+          )
+        : new Map<string, StudentAttendanceStats>();
+
+    const rows = enrollments.map((enrollment) => {
+      const student = enrollment.student;
+      const stats = statsByStudent.get(student.id) ?? {
+        recordedSessions: 0,
+        present: 0,
+        late: 0,
+        absent: 0,
+        excused: 0,
+      };
+      const attendedSessions = stats.present + stats.late;
+      const missedSessions = stats.absent + stats.excused;
+      const attendanceRate =
+        stats.recordedSessions > 0
+          ? this.roundRate((attendedSessions / stats.recordedSessions) * 100)
+          : null;
+
+      return {
+        studentId: student.id,
+        studentCode: student.studentCode,
+        fullName: student.user?.fullName ?? '',
+        totalSessions,
+        recordedSessions: stats.recordedSessions,
+        present: stats.present,
+        late: stats.late,
+        absent: stats.absent,
+        excused: stats.excused,
+        attendedSessions,
+        missedSessions,
+        attendanceRate,
+      };
+    });
+
+    rows.sort((a, b) => a.fullName.localeCompare(b.fullName, 'vi'));
+
+    return {
+      classId,
+      className: classEntity.name,
+      classCode: classEntity.code,
+      teacher: classEntity.teacher
+        ? {
+            id: classEntity.teacher.id,
+            name: classEntity.teacher.user?.fullName ?? '',
+          }
+        : null,
+      totalStudents: rows.length,
+      rows,
+    };
+  }
+
+  private async getActiveStudentCountsByClass(
+    organizationId: string,
+    classIds: string[],
+  ): Promise<Map<string, number>> {
+    if (classIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.classesRepository
+      .createQueryBuilder('class')
+      .innerJoin(
+        'class.enrollments',
+        'enrollment',
+        'enrollment.status = :status',
+        { status: EnrollmentStatus.ACTIVE },
+      )
+      .where('class.organizationId = :organizationId', { organizationId })
+      .andWhere('class.id IN (:...classIds)', { classIds })
+      .select('class.id', 'classId')
+      .addSelect('COUNT(enrollment.id)::int', 'studentCount')
+      .groupBy('class.id')
+      .getRawMany<{ classId: string; studentCount: string }>();
+
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      counts.set(row.classId, parseInt(row.studentCount, 10));
+    }
+    return counts;
+  }
+
+  private computeLifecycleStatus(classEntity: Class): ClassLifecycleStatus {
+    if (classEntity.lifecycleStatus === ClassLifecycleStatus.CANCELLED) {
+      return ClassLifecycleStatus.CANCELLED;
+    }
+
+    const now = new Date();
+    const start = new Date(classEntity.startDate);
+    const end = new Date(classEntity.endDate);
+
+    if (now < start) {
+      return ClassLifecycleStatus.UPCOMING;
+    }
+
+    if (now <= end) {
+      return ClassLifecycleStatus.ONGOING;
+    }
+
+    return ClassLifecycleStatus.COMPLETED;
+  }
+
+  private toClassAttendanceCard(
+    classEntity: Class,
+    studentCount: number,
+  ): ClassAttendanceCard {
+    const days = Array.from(
+      new Set(classEntity.schedules.map((schedule) => schedule.dayOfWeek)),
+    )
+      .sort((a, b) => DAY_ORDER[a] - DAY_ORDER[b])
+      .map((day) => DAY_SHORT_LABELS[day]);
+
+    let scheduleTimeStart: string | null = null;
+    let scheduleTimeEnd: string | null = null;
+    for (const schedule of classEntity.schedules) {
+      const start = this.toHmTime(schedule.startTime);
+      const end = this.toHmTime(schedule.endTime);
+      if (scheduleTimeStart === null || start < scheduleTimeStart) {
+        scheduleTimeStart = start;
+      }
+      if (scheduleTimeEnd === null || end > scheduleTimeEnd) {
+        scheduleTimeEnd = end;
+      }
+    }
+
+    return {
+      id: classEntity.id,
+      name: classEntity.name,
+      code: classEntity.code,
+      courseName: classEntity.course?.name ?? '',
+      branchName: classEntity.branch?.name ?? '',
+      teacherName: classEntity.teacher?.user?.fullName ?? null,
+      studentCount,
+      capacity: classEntity.capacity,
+      scheduleDays: days,
+      scheduleTimeStart,
+      scheduleTimeEnd,
+      lifecycleStatus: this.computeLifecycleStatus(classEntity),
+      startDate: this.toDateString(classEntity.startDate),
+      endDate: this.toDateString(classEntity.endDate),
+    };
+  }
+
+  private async aggregateClassAttendanceByStudent(
+    organizationId: string,
+    sessionIds: string[],
+  ): Promise<Map<string, StudentAttendanceStats>> {
+    if (sessionIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.attendancesRepository
+      .createQueryBuilder('attendance')
+      .where('attendance.organizationId = :organizationId', { organizationId })
+      .andWhere('attendance.sessionId IN (:...sessionIds)', { sessionIds })
+      .select('attendance.studentId', 'studentId')
+      .addSelect('COUNT(*)::int', 'recordedSessions')
+      .addSelect(
+        `COUNT(*) FILTER (WHERE attendance.status = :present)::int`,
+        'present',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (WHERE attendance.status = :late)::int`,
+        'late',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (WHERE attendance.status = :absent)::int`,
+        'absent',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (WHERE attendance.status = :excused)::int`,
+        'excused',
+      )
+      .setParameters({
+        present: AttendanceStatus.PRESENT,
+        late: AttendanceStatus.LATE,
+        absent: AttendanceStatus.ABSENT,
+        excused: AttendanceStatus.EXCUSED,
+      })
+      .groupBy('attendance.studentId')
+      .getRawMany<{
+        studentId: string;
+        recordedSessions: string;
+        present: string;
+        late: string;
+        absent: string;
+        excused: string;
+      }>();
+
+    const statsByStudent = new Map<string, StudentAttendanceStats>();
+    for (const row of rows) {
+      statsByStudent.set(row.studentId, {
+        recordedSessions: parseInt(row.recordedSessions, 10),
+        present: parseInt(row.present, 10),
+        late: parseInt(row.late, 10),
+        absent: parseInt(row.absent, 10),
+        excused: parseInt(row.excused, 10),
+      });
+    }
+    return statsByStudent;
+  }
+
+  private toHmTime(value: string | Date): string {
+    if (value instanceof Date) {
+      const hours = String(value.getHours()).padStart(2, '0');
+      const minutes = String(value.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+    return String(value).slice(0, 5);
   }
 
   private async resolveEnrollmentClassIds(

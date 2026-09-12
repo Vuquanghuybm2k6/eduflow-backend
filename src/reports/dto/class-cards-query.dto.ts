@@ -1,29 +1,31 @@
 import { Type } from 'class-transformer';
 import {
-  IsDateString,
   IsInt,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 
-export class AttendanceSummaryQueryDto {
+export class ClassCardsQueryDto {
   @IsOptional()
   @IsUUID()
   organizationId?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
+
+  @IsOptional()
   @IsUUID()
-  classId?: string;
+  branchId?: string;
 
   @IsOptional()
-  @IsDateString()
-  startDate?: string;
-
-  @IsOptional()
-  @IsDateString()
-  endDate?: string;
+  @IsUUID()
+  teacherId?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -35,6 +37,6 @@ export class AttendanceSummaryQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(200)
   limit?: number;
 }

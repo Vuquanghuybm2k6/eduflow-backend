@@ -14,11 +14,13 @@ type QbMethod =
   | 'innerJoin'
   | 'innerJoinAndSelect'
   | 'leftJoin'
+  | 'leftJoinAndSelect'
   | 'where'
   | 'andWhere'
   | 'select'
   | 'addSelect'
   | 'setParameters'
+  | 'groupBy'
   | 'orderBy'
   | 'addOrderBy'
   | 'limit'
@@ -36,11 +38,13 @@ function makeQb(terminalMethod: QbMethod, terminalResult: unknown) {
     innerJoin: jest.fn(),
     innerJoinAndSelect: jest.fn(),
     leftJoin: jest.fn(),
+    leftJoinAndSelect: jest.fn(),
     where: jest.fn(),
     andWhere: jest.fn(),
     select: jest.fn(),
     addSelect: jest.fn(),
     setParameters: jest.fn(),
+    groupBy: jest.fn(),
     orderBy: jest.fn(),
     addOrderBy: jest.fn(),
     limit: jest.fn(),
@@ -71,7 +75,11 @@ describe('ReportsService', () => {
   let enrollmentsRepo: Record<string, jest.Mock>;
 
   beforeEach(async () => {
-    classesRepo = { findOneBy: jest.fn() };
+    classesRepo = {
+      findOneBy: jest.fn(),
+      findOne: jest.fn(),
+      createQueryBuilder: jest.fn(),
+    };
     studentsRepo = { findOneBy: jest.fn() };
     sessionsRepo = { createQueryBuilder: jest.fn() };
     attendancesRepo = { createQueryBuilder: jest.fn() };
@@ -768,6 +776,309 @@ describe('ReportsService', () => {
 
       await expect(
         service.getClassAttendanceSummary('user-1', 'class-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getClassAttendanceCards', () => {
+    function makeClassEntity(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'class-1',
+        organizationId: 'org-1',
+        name: 'IELTS 6.5 - K01',
+        code: 'IELTS650-K01',
+        capacity: 20,
+        startDate: new Date('2026-09-01T00:00:00Z'),
+        endDate: new Date('2027-01-31T00:00:00Z'),
+        lifecycleStatus: 'ONGOING',
+        status: 'ACTIVE',
+        createdAt: new Date('2026-08-01T00:00:00Z'),
+        course: { name: 'IELTS 6.5' },
+        branch: { name: 'Cơ sở Hà Nội' },
+        teacher: { user: { fullName: 'Nguyễn Văn A' } },
+        schedules: [
+          { dayOfWeek: 'TUESDAY', startTime: '18:30:00', endTime: '20:00:00' },
+          { dayOfWeek: 'THURSDAY', startTime: '18:30:00', endTime: '20:00:00' },
+          {
+            dayOfWeek: 'WEDNESDAY',
+            startTime: '18:30:00',
+            endTime: '20:00:00',
+          },
+        ],
+        ...overrides,
+      };
+    }
+
+    it('returns class cards with joined names, student counts and schedules', async () => {
+      mockMembership();
+      classesRepo.createQueryBuilder
+        .mockReturnValueOnce(makeQb('getMany', [makeClassEntity()]))
+        .mockReturnValueOnce(
+          makeQb('getRawMany', [{ classId: 'class-1', studentCount: '24' }]),
+        );
+
+      const result = await service.getClassAttendanceCards('user-1');
+
+      expect(result.total).toBe(1);
+      expect(result.page).toBe(1);
+      expect(result.items[0]).toMatchObject({
+        id: 'class-1',
+        name: 'IELTS 6.5 - K01',
+        code: 'IELTS650-K01',
+        courseName: 'IELTS 6.5',
+        branchName: 'Cơ sở Hà Nội',
+        teacherName: 'Nguyễn Văn A',
+        studentCount: 24,
+        capacity: 20,
+        scheduleDays: ['T3', 'T4', 'T5'],
+        scheduleTimeStart: '18:30',
+        scheduleTimeEnd: '20:00',
+        lifecycleStatus: 'ONGOING',
+      });
+    });
+
+    it('keeps the CANCELLED lifecycle status without recomputing', async () => {
+      mockMembership();
+      classesRepo.createQueryBuilder
+        .mockReturnValueOnce(
+          makeQb('getMany', [
+            makeClassEntity({
+              lifecycleStatus: 'CANCELLED',
+              startDate: new Date('2020-01-01T00:00:00Z'),
+              endDate: new Date('2020-06-01T00:00:00Z'),
+            }),
+          ]),
+        )
+        .mockReturnValueOnce(makeQb('getRawMany', []));
+
+      const result = await service.getClassAttendanceCards('user-1');
+
+      expect(result.items[0].lifecycleStatus).toBe('CANCELLED');
+    });
+
+    it('applies search, branch and teacher filters', async () => {
+      mockMembership();
+      const qb = makeQb('getMany', []);
+      classesRepo.createQueryBuilder
+        .mockReturnValueOnce(qb)
+        .mockReturnValueOnce(makeQb('getRawMany', []));
+
+      await service.getClassAttendanceCards(
+        'user-1',
+        {},
+        { search: 'IELTS', branchId: 'branch-1', teacherId: 'teacher-1' },
+      );
+
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('ILIKE'),
+        { search: '%IELTS%' },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith('class.branchId = :branchId', {
+        branchId: 'branch-1',
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('class.teacherId = :teacherId', {
+        teacherId: 'teacher-1',
+      });
+    });
+
+    it('paginates the class cards', async () => {
+      mockMembership();
+      classesRepo.createQueryBuilder
+        .mockReturnValueOnce(
+          makeQb('getMany', [
+            makeClassEntity({ id: 'class-1' }),
+            makeClassEntity({ id: 'class-2' }),
+            makeClassEntity({ id: 'class-3' }),
+          ]),
+        )
+        .mockReturnValueOnce(makeQb('getRawMany', []));
+
+      const result = await service.getClassAttendanceCards(
+        'user-1',
+        {},
+        { page: 2, limit: 2 },
+      );
+
+      expect(result.total).toBe(3);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe('class-3');
+    });
+  });
+
+  describe('getClassStudentsAttendance', () => {
+    function mockClassWithTeacher() {
+      classesRepo.findOne.mockResolvedValue({
+        id: 'class-1',
+        name: 'IELTS 6.5 - K01',
+        code: 'IELTS650-K01',
+        teacher: { id: 'teacher-1', user: { fullName: 'Nguyễn Văn A' } },
+      });
+    }
+
+    function mockRoster() {
+      enrollmentsRepo.find.mockResolvedValue([
+        {
+          student: {
+            id: 'student-1',
+            studentCode: 'HV001',
+            user: { fullName: 'Nguyễn Văn A' },
+          },
+        },
+        {
+          student: {
+            id: 'student-2',
+            studentCode: 'HV002',
+            user: { fullName: 'Trần Thị B' },
+          },
+        },
+      ]);
+    }
+
+    function mockSessions(sessions: { id: string }[]) {
+      sessionsRepo.createQueryBuilder.mockReturnValue(
+        makeQb('getMany', sessions),
+      );
+    }
+
+    it('aggregates attendance per student across occurred sessions', async () => {
+      mockMembership();
+      mockClassWithTeacher();
+      mockRoster();
+      mockSessions([
+        { id: 'session-1' },
+        { id: 'session-2' },
+        { id: 'session-3' },
+      ]);
+      attendancesRepo.createQueryBuilder.mockReturnValue(
+        makeQb('getRawMany', [
+          {
+            studentId: 'student-1',
+            recordedSessions: '15',
+            present: '12',
+            late: '3',
+            absent: '0',
+            excused: '0',
+          },
+          {
+            studentId: 'student-2',
+            recordedSessions: '14',
+            present: '10',
+            late: '1',
+            absent: '2',
+            excused: '1',
+          },
+        ]),
+      );
+
+      const result = await service.getClassStudentsAttendance(
+        'user-1',
+        'class-1',
+      );
+
+      expect(result).toMatchObject({
+        className: 'IELTS 6.5 - K01',
+        classCode: 'IELTS650-K01',
+        teacher: { id: 'teacher-1', name: 'Nguyễn Văn A' },
+        totalStudents: 2,
+      });
+      expect(result.rows[0]).toMatchObject({
+        studentId: 'student-1',
+        studentCode: 'HV001',
+        fullName: 'Nguyễn Văn A',
+        totalSessions: 3,
+        recordedSessions: 15,
+        present: 12,
+        late: 3,
+        absent: 0,
+        excused: 0,
+        attendedSessions: 15,
+        missedSessions: 0,
+        attendanceRate: 100,
+      });
+      expect(result.rows[1].attendanceRate).toBe(78.57);
+    });
+
+    it('returns zero stats and a null rate for unmarked students', async () => {
+      mockMembership();
+      mockClassWithTeacher();
+      mockRoster();
+      mockSessions([{ id: 'session-1' }]);
+      attendancesRepo.createQueryBuilder.mockReturnValue(
+        makeQb('getRawMany', [
+          {
+            studentId: 'student-1',
+            recordedSessions: '1',
+            present: '1',
+            late: '0',
+            absent: '0',
+            excused: '0',
+          },
+        ]),
+      );
+
+      const result = await service.getClassStudentsAttendance(
+        'user-1',
+        'class-1',
+      );
+      const unmarked = result.rows.find((row) => row.studentId === 'student-2');
+
+      expect(unmarked).toMatchObject({
+        totalSessions: 1,
+        recordedSessions: 0,
+        present: 0,
+        late: 0,
+        absent: 0,
+        excused: 0,
+        attendedSessions: 0,
+        missedSessions: 0,
+      });
+      expect(unmarked?.attendanceRate).toBeNull();
+    });
+
+    it('applies the date range filter to occurred sessions', async () => {
+      mockMembership();
+      mockClassWithTeacher();
+      mockRoster();
+      const qb = makeQb('getMany', []);
+      sessionsRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.getClassStudentsAttendance('user-1', 'class-1', {
+        startDate: '2026-09-01',
+        endDate: '2026-09-30',
+      });
+
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'session.sessionDate >= :startDate',
+        { startDate: '2026-09-01' },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'session.sessionDate <= :endDate',
+        { endDate: '2026-09-30' },
+      );
+    });
+
+    it('returns all-zero rows when no sessions have occurred', async () => {
+      mockMembership();
+      mockClassWithTeacher();
+      mockRoster();
+      mockSessions([]);
+
+      const result = await service.getClassStudentsAttendance(
+        'user-1',
+        'class-1',
+      );
+
+      expect(result.rows[0].totalSessions).toBe(0);
+      expect(result.rows[0].attendanceRate).toBeNull();
+      expect(attendancesRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the class belongs to another organization', async () => {
+      mockMembership();
+      classesRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getClassStudentsAttendance('user-1', 'class-other'),
       ).rejects.toThrow(NotFoundException);
     });
   });
