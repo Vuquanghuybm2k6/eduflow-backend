@@ -830,11 +830,74 @@ describe('ReportsService', () => {
         teacherName: 'Nguyễn Văn A',
         studentCount: 24,
         capacity: 20,
-        scheduleDays: ['T3', 'T4', 'T5'],
-        scheduleTimeStart: '18:30',
-        scheduleTimeEnd: '20:00',
+        schedules: [
+          { dayOfWeek: 'TUESDAY', startTime: '18:30', endTime: '20:00' },
+          { dayOfWeek: 'WEDNESDAY', startTime: '18:30', endTime: '20:00' },
+          { dayOfWeek: 'THURSDAY', startTime: '18:30', endTime: '20:00' },
+        ],
         lifecycleStatus: 'ONGOING',
       });
+    });
+
+    it('returns per-day time slots sorted by day and time', async () => {
+      mockMembership();
+      classesRepo.createQueryBuilder
+        .mockReturnValueOnce(
+          makeQb('getMany', [
+            makeClassEntity({
+              schedules: [
+                {
+                  dayOfWeek: 'THURSDAY',
+                  startTime: '07:00:00',
+                  endTime: '09:00:00',
+                },
+                {
+                  dayOfWeek: 'TUESDAY',
+                  startTime: '09:00:00',
+                  endTime: '10:00:00',
+                },
+              ],
+            }),
+          ]),
+        )
+        .mockReturnValueOnce(makeQb('getRawMany', []));
+
+      const result = await service.getClassAttendanceCards('user-1');
+
+      expect(result.items[0].schedules).toEqual([
+        { dayOfWeek: 'TUESDAY', startTime: '09:00', endTime: '10:00' },
+        { dayOfWeek: 'THURSDAY', startTime: '07:00', endTime: '09:00' },
+      ]);
+    });
+
+    it('dedupes identical schedule slots', async () => {
+      mockMembership();
+      classesRepo.createQueryBuilder
+        .mockReturnValueOnce(
+          makeQb('getMany', [
+            makeClassEntity({
+              schedules: [
+                {
+                  dayOfWeek: 'MONDAY',
+                  startTime: '18:00:00',
+                  endTime: '20:00:00',
+                },
+                {
+                  dayOfWeek: 'MONDAY',
+                  startTime: '18:00:00',
+                  endTime: '20:00:00',
+                },
+              ],
+            }),
+          ]),
+        )
+        .mockReturnValueOnce(makeQb('getRawMany', []));
+
+      const result = await service.getClassAttendanceCards('user-1');
+
+      expect(result.items[0].schedules).toEqual([
+        { dayOfWeek: 'MONDAY', startTime: '18:00', endTime: '20:00' },
+      ]);
     });
 
     it('keeps the CANCELLED lifecycle status without recomputing', async () => {

@@ -86,6 +86,12 @@ interface AttendanceHistoryRawRow {
   note: string | null;
 }
 
+export interface ClassScheduleSlot {
+  dayOfWeek: DayOfWeek;
+  startTime: string;
+  endTime: string;
+}
+
 export interface ClassAttendanceCard {
   id: string;
   name: string;
@@ -95,9 +101,7 @@ export interface ClassAttendanceCard {
   teacherName: string | null;
   studentCount: number;
   capacity: number;
-  scheduleDays: string[];
-  scheduleTimeStart: string | null;
-  scheduleTimeEnd: string | null;
+  schedules: ClassScheduleSlot[];
   lifecycleStatus: ClassLifecycleStatus;
   startDate: string;
   endDate: string;
@@ -154,16 +158,6 @@ interface StudentAttendanceStats {
   absent: number;
   excused: number;
 }
-
-const DAY_SHORT_LABELS: Record<DayOfWeek, string> = {
-  MONDAY: 'T2',
-  TUESDAY: 'T3',
-  WEDNESDAY: 'T4',
-  THURSDAY: 'T5',
-  FRIDAY: 'T6',
-  SATURDAY: 'T7',
-  SUNDAY: 'CN',
-};
 
 const DAY_ORDER: Record<DayOfWeek, number> = {
   MONDAY: 0,
@@ -730,24 +724,27 @@ export class ReportsService {
     classEntity: Class,
     studentCount: number,
   ): ClassAttendanceCard {
-    const days = Array.from(
-      new Set(classEntity.schedules.map((schedule) => schedule.dayOfWeek)),
-    )
-      .sort((a, b) => DAY_ORDER[a] - DAY_ORDER[b])
-      .map((day) => DAY_SHORT_LABELS[day]);
-
-    let scheduleTimeStart: string | null = null;
-    let scheduleTimeEnd: string | null = null;
-    for (const schedule of classEntity.schedules) {
-      const start = this.toHmTime(schedule.startTime);
-      const end = this.toHmTime(schedule.endTime);
-      if (scheduleTimeStart === null || start < scheduleTimeStart) {
-        scheduleTimeStart = start;
-      }
-      if (scheduleTimeEnd === null || end > scheduleTimeEnd) {
-        scheduleTimeEnd = end;
-      }
-    }
+    const seen = new Set<string>();
+    const schedules: ClassScheduleSlot[] = classEntity.schedules
+      .slice()
+      .sort((a, b) => {
+        const dayDiff = DAY_ORDER[a.dayOfWeek] - DAY_ORDER[b.dayOfWeek];
+        if (dayDiff !== 0) return dayDiff;
+        return this.toHmTime(a.startTime).localeCompare(
+          this.toHmTime(b.startTime),
+        );
+      })
+      .filter((schedule) => {
+        const key = `${schedule.dayOfWeek}|${schedule.startTime}|${schedule.endTime}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((schedule) => ({
+        dayOfWeek: schedule.dayOfWeek,
+        startTime: this.toHmTime(schedule.startTime),
+        endTime: this.toHmTime(schedule.endTime),
+      }));
 
     return {
       id: classEntity.id,
@@ -758,9 +755,7 @@ export class ReportsService {
       teacherName: classEntity.teacher?.user?.fullName ?? null,
       studentCount,
       capacity: classEntity.capacity,
-      scheduleDays: days,
-      scheduleTimeStart,
-      scheduleTimeEnd,
+      schedules,
       lifecycleStatus: this.computeLifecycleStatus(classEntity),
       startDate: this.toDateString(classEntity.startDate),
       endDate: this.toDateString(classEntity.endDate),
