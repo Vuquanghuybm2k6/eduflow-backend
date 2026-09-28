@@ -10,6 +10,7 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
+import { Role } from '../roles/entities/role.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { VerificationToken } from './entities/verification-token.entity';
 import { Membership } from '../memberships/entities/membership.entity';
@@ -22,6 +23,7 @@ describe('AuthService', () => {
       save: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
+      findOneBy: jest.Mock;
     };
   };
   let userRepository: { update: jest.Mock };
@@ -55,6 +57,7 @@ describe('AuthService', () => {
           ...data,
         })),
         update: jest.fn().mockResolvedValue(undefined),
+        findOneBy: jest.fn().mockResolvedValue(null),
       },
     };
     dataSource.transaction.mockImplementation((cb: (manager: any) => unknown) =>
@@ -285,8 +288,12 @@ describe('AuthService', () => {
       expect(refreshTokenRepository.save).toHaveBeenCalled();
     });
 
-    it('creates a new user with org, role and membership when email is new', async () => {
+    it('creates a new user with org, OWNER role and membership when email is new', async () => {
       users.findByEmail.mockResolvedValue(null);
+      dataSource.manager.findOneBy.mockResolvedValue({
+        id: 'role-owner',
+        code: 'OWNER',
+      });
 
       const result = await service.loginWithGoogle('good-id-token');
 
@@ -303,12 +310,12 @@ describe('AuthService', () => {
           name: expect.stringMatching(/'s Organization$/),
         }),
       );
-      expect(dataSource.manager.save).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'Admin' }),
-      );
+      expect(dataSource.manager.findOneBy).toHaveBeenCalledWith(Role, {
+        code: 'OWNER',
+      });
       expect(dataSource.manager.save).toHaveBeenCalledWith(
         expect.objectContaining<Record<string, unknown>>({
-          roleId: expect.any(String),
+          roleId: 'role-owner',
         }),
       );
     });

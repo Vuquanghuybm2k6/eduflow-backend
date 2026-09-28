@@ -15,11 +15,13 @@ import { User } from '../users/entities/user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Branch } from '../branches/entities/branch.entity';
 import { AuthModule } from '../auth/auth.module';
+import { AuthorizationModule } from '../authorization/authorization.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Student, User, Membership, Branch]),
     AuthModule,
+    AuthorizationModule,
     ExcelModule,
   ],
   controllers: [StudentsController],

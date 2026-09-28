@@ -3,6 +3,7 @@
   ConflictException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -28,6 +29,7 @@ import {
   VerificationToken,
   OtpPurpose,
 } from './entities/verification-token.entity';
+import { RoleCode } from '../authorization/enums/role.enum';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { SelectMembershipDto } from './dto/select-membership.dto';
@@ -190,19 +192,20 @@ export class AuthService {
         }),
       );
 
-      const role = await manager.save(
-        manager.create(Role, {
-          name: 'Organization Owner',
-          organizationId: org.id,
-          isSystem: true,
-        }),
-      );
+      const ownerRole = await manager.findOneBy(Role, {
+        code: RoleCode.OWNER,
+      });
+      if (!ownerRole) {
+        throw new InternalServerErrorException(
+          'System role OWNER is not seeded. Run `npm run seed`',
+        );
+      }
 
       await manager.save(
         manager.create(Membership, {
           userId: newUser.id,
           organizationId: org.id,
-          roleId: role.id,
+          roleId: ownerRole.id,
         }),
       );
 
@@ -305,19 +308,20 @@ export class AuthService {
           }),
         );
 
-        const role = await manager.save(
-          manager.create(Role, {
-            name: 'Admin',
-            organizationId: org.id,
-            isSystem: true,
-          }),
-        );
+        const ownerRole = await manager.findOneBy(Role, {
+          code: RoleCode.OWNER,
+        });
+        if (!ownerRole) {
+          throw new InternalServerErrorException(
+            'System role OWNER is not seeded. Run `npm run seed`',
+          );
+        }
 
         await manager.save(
           manager.create(Membership, {
             userId: newUser.id,
             organizationId: org.id,
-            roleId: role.id,
+            roleId: ownerRole.id,
           }),
         );
 

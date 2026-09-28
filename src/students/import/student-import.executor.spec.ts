@@ -45,7 +45,11 @@ describe('StudentImportExecutor', () => {
       save: jest
         .fn()
         .mockImplementation((arg) => Promise.resolve({ ...arg, id: 'new-id' })),
-      findOneBy: jest.fn().mockResolvedValue(null),
+      findOneBy: jest.fn().mockResolvedValue({
+        id: 'role-student',
+        name: 'Student',
+        code: 'STUDENT',
+      }),
       create: jest.fn().mockImplementation((arg) => arg),
     };
   }
@@ -96,11 +100,11 @@ describe('StudentImportExecutor', () => {
     expect(userEntity.fullName).toBe('Nguyen Van A');
     expect(userEntity.gender).toBe(Gender.MALE);
 
-    const membershipEntity = tx.create.mock.calls[2][1];
+    const membershipEntity = tx.create.mock.calls[1][1];
     expect(membershipEntity.userId).toBe('new-id');
     expect(membershipEntity.organizationId).toBe('org-1');
 
-    const studentEntity = tx.create.mock.calls[3][1];
+    const studentEntity = tx.create.mock.calls[2][1];
     expect(studentEntity.studentCode).toBe('ST001');
     expect(studentEntity.branches).toHaveLength(1);
   });
@@ -119,6 +123,20 @@ describe('StudentImportExecutor', () => {
     expect(tx.findOneBy).toHaveBeenCalled();
     expect(tx.save).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Student', isSystem: true }),
+    );
+  });
+
+  it('throws ConflictException when the STUDENT system role is not seeded', async () => {
+    const tx = txManager();
+    tx.findOneBy.mockResolvedValue(null);
+    dataSource.transaction.mockImplementation((fn) => fn(tx));
+
+    await expect(
+      executor.execute(makeRow() as ImportJobRow, 'org-1'),
+    ).rejects.toThrow(ConflictException);
+    expect(tx.findOneBy).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ code: 'STUDENT' }),
     );
   });
 

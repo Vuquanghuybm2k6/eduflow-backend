@@ -21,8 +21,11 @@ import { DEFAULT_IMPORT_TEMPLATE_LANGUAGE } from '../imports/import-template.con
 import { EXCEL_MIME_TYPE } from '../common/excel/excel.constants';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { PermissionsGuard } from '../authorization/guards/permissions.guard';
+import { Permissions } from '../authorization/decorators/permissions.decorator';
+import { Permission } from '../authorization/enums/permission.enum';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('students')
 export class StudentsController {
   constructor(
@@ -32,6 +35,7 @@ export class StudentsController {
   ) {}
 
   @Post()
+  @Permissions(Permission.STUDENTS_CREATE)
   create(
     @CurrentUser('userId') userId: string,
     @Body() createStudentDto: CreateStudentDto,
@@ -43,6 +47,7 @@ export class StudentsController {
   }
 
   @Get()
+  @Permissions(Permission.STUDENTS_READ)
   findAll(
     @CurrentUser('userId') userId: string,
     @Query('organizationId') organizationId?: string,
@@ -92,6 +97,7 @@ export class StudentsController {
   }
 
   @Get(':id')
+  @Permissions(Permission.STUDENTS_READ)
   findOne(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
@@ -101,6 +107,7 @@ export class StudentsController {
   }
 
   @Patch(':id')
+  @Permissions(Permission.STUDENTS_UPDATE)
   update(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
@@ -113,6 +120,7 @@ export class StudentsController {
   }
 
   @Patch(':id/status')
+  @Permissions(Permission.STUDENTS_UPDATE)
   updateStatus(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,

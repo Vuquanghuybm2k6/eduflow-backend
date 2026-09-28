@@ -9,6 +9,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { RolesModule } from './roles/roles.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { PermissionsModule } from './permissions/permissions.module';
+import { AuthorizationModule } from './authorization/authorization.module';
 import { AuthModule } from './auth/auth.module';
 import { BranchesModule } from './branches/branches.module';
 import { CoursesModule } from './courses/courses.module';
@@ -43,6 +44,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     RolesModule,
     MembershipsModule,
     PermissionsModule,
+    AuthorizationModule,
     BranchesModule,
     CoursesModule,
     ClassesModule,

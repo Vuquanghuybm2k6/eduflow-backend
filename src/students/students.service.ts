@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -20,12 +21,11 @@ import {
   MembershipStatus,
 } from '../memberships/entities/membership.entity';
 import { Branch, BranchStatus } from '../branches/entities/branch.entity';
+import { RoleCode } from '../authorization/enums/role.enum';
 
 export interface OrgContextOptions {
   organizationId?: string;
 }
-
-const STUDENT_ROLE_NAME = 'Student';
 
 @Injectable()
 export class StudentsService {
@@ -53,12 +53,13 @@ export class StudentsService {
         status: MembershipStatus.ACTIVE,
       });
 
-    if (requestedOrganizationId) {
+    if (requestedOrganizationId) { // nếu người dùng chỉ định org thì lấy theo yêu cầu người dùng
       qb.andWhere('membership.organizationId = :organizationId', {
         organizationId: requestedOrganizationId,
       });
     }
 
+    // nếu người dùng không chỉ định org thì sẽ ưu tiên org mà user tham gia sớm nhất
     qb.orderBy('membership.joinedAt', 'ASC')
       .addOrderBy('membership.createdAt', 'ASC')
       .limit(1);
@@ -100,26 +101,15 @@ export class StudentsService {
     }
   }
 
-  private async findOrCreateStudentRole(
-    manager: EntityManager,
-    organizationId: string,
-  ): Promise<Role> {
-    const existing = await manager.findOneBy(Role, {
-      organizationId,
-      name: STUDENT_ROLE_NAME,
-    });
-
-    if (existing) {
-      return existing;
+  private async findStudentRole(manager: EntityManager): Promise<Role> {
+    const role = await manager.findOneBy(Role, { code: RoleCode.STUDENT });
+    if (!role) {
+      throw new InternalServerErrorException(
+        'System role STUDENT is not seeded. Run `npm run seed`',
+      );
     }
 
-    return manager.save(
-      manager.create(Role, {
-        name: STUDENT_ROLE_NAME,
-        organizationId,
-        isSystem: true,
-      }),
-    );
+    return role;
   }
 
   private async assertStudentCodeAvailable(
@@ -217,7 +207,7 @@ export class StudentsService {
         }),
       );
 
-      const role = await this.findOrCreateStudentRole(manager, organizationId);
+      const role = await this.findStudentRole(manager);
 
       await manager.save(
         manager.create(Membership, {

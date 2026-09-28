@@ -10,8 +10,7 @@ import { Role } from '../../roles/entities/role.entity';
 import { Membership } from '../../memberships/entities/membership.entity';
 import { Branch, BranchStatus } from '../../branches/entities/branch.entity';
 import { ImportJobRow } from '../../imports/entities/import-job-row.entity';
-
-const STUDENT_ROLE_NAME = 'Student';
+import { RoleCode } from '../../authorization/enums/role.enum';
 
 @Injectable()
 export class StudentImportExecutor {
@@ -66,10 +65,7 @@ export class StudentImportExecutor {
         }),
       );
 
-      const role = await this.findOrCreateStudentRole(
-        txManager,
-        organizationId,
-      );
+      const role = await this.findStudentRole(txManager);
 
       await txManager.save(
         txManager.create(Membership, {
@@ -128,26 +124,15 @@ export class StudentImportExecutor {
     }
   }
 
-  private async findOrCreateStudentRole(
-    manager: EntityManager,
-    organizationId: string,
-  ): Promise<Role> {
-    const existing = await manager.findOneBy(Role, {
-      organizationId,
-      name: STUDENT_ROLE_NAME,
-    });
-
-    if (existing) {
-      return existing;
+  private async findStudentRole(manager: EntityManager): Promise<Role> {
+    const role = await manager.findOneBy(Role, { code: RoleCode.STUDENT });
+    if (!role) {
+      throw new ConflictException(
+        'System role STUDENT is not seeded. Run `npm run seed`',
+      );
     }
 
-    return manager.save(
-      manager.create(Role, {
-        name: STUDENT_ROLE_NAME,
-        organizationId,
-        isSystem: true,
-      }),
-    );
+    return role;
   }
 
   private generateTemporaryPassword(): string {

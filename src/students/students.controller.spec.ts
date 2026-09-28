@@ -12,6 +12,7 @@ import { User } from '../users/entities/user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Branch } from '../branches/entities/branch.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../authorization/guards/permissions.guard';
 
 const exportServiceMock = {
   export: jest.fn().mockResolvedValue({
@@ -72,7 +73,12 @@ describe('StudentsController', () => {
           useValue: templateServiceMock,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(PermissionsGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<StudentsController>(StudentsController);
   });
@@ -108,6 +114,8 @@ describe('StudentsController /students/export (http)', () => {
       ],
     })
       .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(PermissionsGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
