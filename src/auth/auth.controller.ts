@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Req,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -17,18 +9,20 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { VerifyRegistrationOtpDto } from './dto/verify-registration-otp.dto';
 import { SelectMembershipDto } from './dto/select-membership.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { Public } from './decorators/public.decorator';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
   @Post('register')
   async register(@Body() dto: RegisterDto) {
     return this.authService.sendRegistrationOtp(dto);
   }
 
+  @Public()
   @Post('verify-registration-otp')
   async verifyRegistrationOtp(
     @Body() dto: VerifyRegistrationOtpDto,
@@ -44,6 +38,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('login')
   async login(
     @Body() dto: LoginDto,
@@ -64,6 +59,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('select-membership')
   async selectMembership(
     @Body() dto: SelectMembershipDto,
@@ -80,6 +76,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('google')
   async googleLogin(
     @Body() dto: GoogleLoginDto,
@@ -100,6 +97,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('refresh')
   async refresh(
     @Req() req: Request,
@@ -117,6 +115,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('logout')
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const refreshToken = req.cookies?.refresh_token as string | undefined;
@@ -132,22 +131,24 @@ export class AuthController {
     return result;
   }
 
+  @Public()
   @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }
 
+  @Public()
   @Post('verify-otp')
   async verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyOtp(dto.email, dto.otp);
   }
 
+  @Public()
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.resetToken, dto.newPassword);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('me')
   getMe(@CurrentUser('userId') userId: string) {
     return this.authService.getMe(userId);

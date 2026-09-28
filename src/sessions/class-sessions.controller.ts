@@ -6,15 +6,12 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { ClassSessionsService } from './class-sessions.service';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
 @Controller()
 export class ClassSessionsController {
   constructor(private readonly classSessionsService: ClassSessionsService) {}

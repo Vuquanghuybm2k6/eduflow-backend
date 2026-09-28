@@ -6,14 +6,11 @@ import {
   ParseUUIDPipe,
   Put,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
 @Controller()
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}

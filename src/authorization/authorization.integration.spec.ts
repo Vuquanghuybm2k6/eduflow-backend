@@ -1,4 +1,5 @@
-import { Controller, Get, INestApplication, UseGuards } from '@nestjs/common';
+import { Controller, Get, INestApplication } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
@@ -8,6 +9,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
 import { JwtStrategy } from '../auth/strategies/jwt.strategy';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public } from '../auth/decorators/public.decorator';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { Permissions } from './decorators/permissions.decorator';
 import { Permission } from './enums/permission.enum';
@@ -18,7 +20,6 @@ import { UsersService } from '../users/users.service';
 const TEST_SECRET = 'test-secret';
 
 @Controller('protected')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
 class TestController {
   @Get()
   @Permissions(Permission.STUDENTS_CREATE)
@@ -28,6 +29,12 @@ class TestController {
 
   @Get('open')
   open() {
+    return 'ok';
+  }
+
+  @Public()
+  @Get('public')
+  publicRoute() {
     return 'ok';
   }
 }
@@ -47,7 +54,8 @@ describe('Authorization HTTP flow (401 / 403 / 200)', () => {
       controllers: [TestController],
       providers: [
         JwtStrategy,
-        PermissionsGuard,
+        { provide: APP_GUARD, useClass: JwtAuthGuard },
+        { provide: APP_GUARD, useClass: PermissionsGuard },
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue(TEST_SECRET) },
@@ -156,6 +164,20 @@ describe('Authorization HTTP flow (401 / 403 / 200)', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
+    expect(authorizationService.hasPermission).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 on a protected route without @Permissions when no token is provided', async () => {
+    const res = await request(app.getHttpServer()).get('/protected/open');
+
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 200 on a @Public() route without a token', async () => {
+    const res = await request(app.getHttpServer()).get('/protected/public');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toBe('ok');
     expect(authorizationService.hasPermission).not.toHaveBeenCalled();
   });
 });

@@ -5,7 +5,6 @@ import { TeachersController } from './teachers.controller';
 import { TeachersService } from './teachers.service';
 import { TeacherExportService } from './export/teacher-export.service';
 import { TeacherImportTemplateService } from './import/teacher-import-template.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 const exportServiceMock = {
   export: jest.fn().mockResolvedValue({
@@ -144,10 +143,7 @@ describe('TeachersController /teachers/export (http)', () => {
           useValue: templateServiceMock,
         },
       ],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+    }).compile();
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(

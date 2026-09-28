@@ -5,12 +5,10 @@ import {
   Post,
   Query,
   UploadedFile,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ImportsService } from './imports.service';
 import { ImportJobResult, ImportPreview } from './types/import.types';
@@ -23,7 +21,6 @@ import type {
 } from '../teachers/import/teacher-import.types';
 import { IMPORT_MAX_FILE_SIZE_BYTES } from './validators/import-file.validator';
 
-@UseGuards(JwtAuthGuard)
 @Controller('imports')
 export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}

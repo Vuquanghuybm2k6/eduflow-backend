@@ -8,17 +8,14 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { SchedulesService } from './schedules.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { CreateSessionsDto } from './dto/create-sessions.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { CalendarQueryDto } from './dto/calendar-query.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
 @Controller()
 export class SchedulesController {
   constructor(private readonly schedulesService: SchedulesService) {}

@@ -53,7 +53,8 @@ export class StudentsService {
         status: MembershipStatus.ACTIVE,
       });
 
-    if (requestedOrganizationId) { // nếu người dùng chỉ định org thì lấy theo yêu cầu người dùng
+    if (requestedOrganizationId) {
+      // nếu người dùng chỉ định org thì lấy theo yêu cầu người dùng
       qb.andWhere('membership.organizationId = :organizationId', {
         organizationId: requestedOrganizationId,
       });
