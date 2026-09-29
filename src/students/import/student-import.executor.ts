@@ -10,6 +10,10 @@ import { Role } from '../../roles/entities/role.entity';
 import { Membership } from '../../memberships/entities/membership.entity';
 import { Branch, BranchStatus } from '../../branches/entities/branch.entity';
 import { ImportJobRow } from '../../imports/entities/import-job-row.entity';
+import {
+  readCellString,
+  readOptionalCellString,
+} from '../../imports/utils/cell-value.utils';
 import { RoleCode } from '../../authorization/enums/role.enum';
 
 @Injectable()
@@ -27,17 +31,13 @@ export class StudentImportExecutor {
   async execute(row: ImportJobRow, organizationId: string): Promise<void> {
     const data = row.normalizedData;
 
-    const studentCode = String(data['student_code'] || '').trim();
-    const email = String(data['email'] || '')
-      .trim()
-      .toLowerCase();
-    const fullName = String(data['full_name'] || '').trim();
-    const phone = data['phone'] ? String(data['phone']).trim() : null;
-    const dateOfBirth = data['date_of_birth']
-      ? String(data['date_of_birth']).trim()
-      : null;
-    const gender = data['gender'] ? String(data['gender']).trim() : null;
-    const branchCode = String(data['branch_code'] || '').trim();
+    const studentCode = readCellString(data['student_code']);
+    const email = readCellString(data['email']).toLowerCase();
+    const fullName = readCellString(data['full_name']);
+    const phone = readOptionalCellString(data['phone']);
+    const dateOfBirth = readOptionalCellString(data['date_of_birth']);
+    const gender = readOptionalCellString(data['gender']);
+    const branchCode = readCellString(data['branch_code']);
 
     const genderEnum = this.resolveGender(gender);
 

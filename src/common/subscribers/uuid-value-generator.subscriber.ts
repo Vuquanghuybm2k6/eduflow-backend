@@ -11,7 +11,7 @@ export class UuidValueGeneratorSubscriber implements EntitySubscriberInterface {
     const { entity, metadata } = event;
     const now = new Date();
     for (const column of metadata.columns) {
-      const value = column.getEntityValue(entity);
+      const value: unknown = column.getEntityValue(entity);
       if (value !== undefined) {
         continue;
       }

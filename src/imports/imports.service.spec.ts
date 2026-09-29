@@ -739,7 +739,7 @@ describe('ImportsService', () => {
       expect(preview.invalid).toBe(0);
       expect(preview.rows[0].data.full_name).toBe('Nguyễn Thị Hoa');
       expect(preview.rows[0].data.gender).toBe('FEMALE');
-      expect(preview.rows[0].data.branch_codes).toEqual(['BR001', 'BR002']);
+      expect(preview.rows[0].data.branch_codes).toEqual(['BM001', 'BM002']);
     });
 
     it('previews the generated English teacher template file', async () => {
@@ -760,7 +760,7 @@ describe('ImportsService', () => {
       expect(preview.total).toBe(2);
       expect(preview.valid).toBe(2);
       expect(preview.invalid).toBe(0);
-      expect(preview.rows[1].data.teacher_code).toBe('GV002');
+      expect(preview.rows[1].data.teacher_code).toBe('GV012');
       expect(preview.rows[1].data.gender).toBe('MALE');
     });
 

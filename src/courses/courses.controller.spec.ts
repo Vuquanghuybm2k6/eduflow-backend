@@ -36,8 +36,8 @@ describe('CoursesController', () => {
     expect(result).toBeDefined();
   });
 
-  it('calls findAll with userId and org context', () => {
-    controller.findAll('user-1', 'org-1');
+  it('calls findAll with userId and org context', async () => {
+    await controller.findAll('user-1', 'org-1');
 
     expect(service.findAll).toHaveBeenCalledWith('user-1', {
       organizationId: 'org-1',

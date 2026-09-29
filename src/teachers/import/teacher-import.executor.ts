@@ -13,6 +13,10 @@ import {
 import { Branch, BranchStatus } from '../../branches/entities/branch.entity';
 import { Teacher, TeacherStatus } from '../entities/teacher.entity';
 import { ImportJobRow } from '../../imports/entities/import-job-row.entity';
+import {
+  readCellString,
+  readOptionalCellString,
+} from '../../imports/utils/cell-value.utils';
 
 const TEACHER_ROLE_NAME = 'Teacher';
 
@@ -33,14 +37,14 @@ export class TeacherImportExecutor {
   async execute(row: ImportJobRow, organizationId: string): Promise<void> {
     const data = row.normalizedData;
 
-    const email = this.readString(data['email']).toLowerCase();
-    const fullName = this.readString(data['full_name']);
-    const teacherCode = this.readString(data['teacher_code']);
-    const specialization = this.readOptionalString(data['specialization']);
-    const qualification = this.readOptionalString(data['qualification']);
-    const bio = this.readOptionalString(data['bio']);
-    const hireDate = this.readOptionalString(data['hire_date']);
-    const gender = this.readOptionalString(data['gender']);
+    const email = readCellString(data['email']).toLowerCase();
+    const fullName = readCellString(data['full_name']);
+    const teacherCode = readCellString(data['teacher_code']);
+    const specialization = readOptionalCellString(data['specialization']);
+    const qualification = readOptionalCellString(data['qualification']);
+    const bio = readOptionalCellString(data['bio']);
+    const hireDate = readOptionalCellString(data['hire_date']);
+    const gender = readOptionalCellString(data['gender']);
     const branchCodes = this.readBranchCodes(data['branch_codes']);
 
     await this.validateRowDb(organizationId, teacherCode, email, branchCodes);
@@ -192,7 +196,7 @@ export class TeacherImportExecutor {
   private readBranchCodes(raw: unknown): string[] {
     if (Array.isArray(raw)) {
       return raw
-        .map((item) => this.readString(item))
+        .map((item) => readCellString(item))
         .filter((item) => item !== '');
     }
 
@@ -204,30 +208,6 @@ export class TeacherImportExecutor {
     }
 
     return [];
-  }
-
-  private readString(raw: unknown): string {
-    if (typeof raw === 'string') {
-      return raw.trim();
-    }
-
-    if (typeof raw === 'number' || typeof raw === 'boolean') {
-      return String(raw).trim();
-    }
-
-    return '';
-  }
-
-  private readOptionalString(raw: unknown): string | null {
-    if (typeof raw === 'string') {
-      return raw.trim() || null;
-    }
-
-    if (typeof raw === 'number' || typeof raw === 'boolean') {
-      return String(raw).trim();
-    }
-
-    return null;
   }
 
   private resolveGender(gender: string | null): Gender | null {

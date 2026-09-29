@@ -52,7 +52,7 @@ describe('TeachersService', () => {
         id: `id-${++seq}`,
         ...(data as object),
       })),
-      save: jest.fn(async (entity: unknown) => entity),
+      save: jest.fn((entity: unknown) => Promise.resolve(entity)),
       findOneBy: jest.fn(),
       findBy: jest.fn(),
     };
@@ -73,7 +73,7 @@ describe('TeachersService', () => {
       findOneBy: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
-      save: jest.fn(async (entity: unknown) => entity),
+      save: jest.fn((entity: unknown) => Promise.resolve(entity)),
     };
     usersRepo = {
       findOneBy: jest.fn(),

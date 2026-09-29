@@ -28,7 +28,7 @@ export class ResetSchema1735870000000 implements MigrationInterface {
     await queryRunner.query(`DROP TYPE IF EXISTS "OtpPurpose"`);
   }
 
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  public async down(_queryRunner: QueryRunner): Promise<void> {
     // Reset is destructive; nothing to restore here.
   }
 }

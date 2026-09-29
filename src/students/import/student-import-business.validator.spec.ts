@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { FindManyOptions } from 'typeorm';
 
 import { Student } from '../entities/student.entity';
-import { Gender, User } from '../../users/entities/user.entity';
+import { User } from '../../users/entities/user.entity';
 import { Branch, BranchStatus } from '../../branches/entities/branch.entity';
 import { ImportRowResult } from '../../imports/types/import.types';
 import { StudentImportBusinessValidator } from './student-import.validator';
