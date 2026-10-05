@@ -1,0 +1,48 @@
+# Dependencies and build output (rebuilt inside image)
+node_modules
+dist
+build
+coverage
+.nyc_output
+*.tsbuildinfo
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+server.out.log
+server.err.log
+
+# Tests
+test
+**/*.spec.ts
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Ad-hoc scripts
+gen-token.js
+query-users.js
+setup-refresh-token.js
+
+# VCS / CI / agent tooling
+.git
+.github
+.gitignore
+.agents
+.claude
+.windsurf
+AGENTS.md
+skills-lock.json
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store

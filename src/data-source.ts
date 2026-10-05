@@ -47,7 +47,7 @@ export const AppDataSource = new DataSource({
     ImportJob,
     ImportJobRow,
   ],
-  migrations: ['src/migrations/*.ts'],
+  migrations: [process.env.MIGRATIONS_PATH ?? 'src/migrations/*.ts'],
   subscribers: [UuidValueGeneratorSubscriber],
   synchronize: false,
 });
