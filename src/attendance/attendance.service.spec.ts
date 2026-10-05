@@ -19,25 +19,6 @@ import {
 } from '../enrollments/entities/enrollment.entity';
 import { Teacher, TeacherStatus } from '../teachers/entities/teacher.entity';
 
-function makeMembershipQb(result: unknown) {
-  const qb: Record<string, jest.Mock> = {
-    innerJoinAndSelect: jest.fn(),
-    where: jest.fn(),
-    andWhere: jest.fn(),
-    orderBy: jest.fn(),
-    addOrderBy: jest.fn(),
-    limit: jest.fn(),
-    getOne: jest.fn(),
-  };
-  Object.values(qb).forEach((fn) => {
-    if (fn !== qb.getOne) {
-      fn.mockReturnValue(qb);
-    }
-  });
-  qb.getOne.mockResolvedValue(result);
-  return qb;
-}
-
 function makeEnrollmentQb(result: unknown) {
   const qb: Record<string, jest.Mock> = {
     innerJoinAndSelect: jest.fn(),
@@ -134,8 +115,6 @@ describe('AttendanceService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
-    const membershipQb = makeMembershipQb({ organizationId: 'org-1' });
-
     dataSource = { transaction: jest.fn() };
     attendancesRepo = {
       find: jest.fn(),
@@ -145,7 +124,6 @@ describe('AttendanceService', () => {
     };
     sessionsRepo = { findOne: jest.fn() };
     membershipsRepo = {
-      createQueryBuilder: jest.fn(() => membershipQb),
       findOne: jest.fn(),
     };
     teachersRepo = { findOne: jest.fn() };
@@ -203,7 +181,11 @@ describe('AttendanceService', () => {
         role: { name: 'Organization Owner' },
       });
 
-      const result = await service.getSessionAttendance('user-1', 'session-1');
+      const result = await service.getSessionAttendance(
+        'user-1',
+        'org-1',
+        'session-1',
+      );
 
       expect(result.role).toBe('manager');
       expect(result.students).toHaveLength(2);
@@ -220,7 +202,11 @@ describe('AttendanceService', () => {
         role: { name: 'Admin' },
       });
 
-      const result = await service.getSessionAttendance('user-1', 'session-1');
+      const result = await service.getSessionAttendance(
+        'user-1',
+        'org-1',
+        'session-1',
+      );
 
       expect(result.role).toBe('manager');
       expect(result.students).toHaveLength(2);
@@ -234,7 +220,11 @@ describe('AttendanceService', () => {
       });
       teachersRepo.findOne.mockResolvedValue(teacher);
 
-      const result = await service.getSessionAttendance('user-1', 'session-1');
+      const result = await service.getSessionAttendance(
+        'user-1',
+        'org-1',
+        'session-1',
+      );
 
       expect(result.role).toBe('teacher');
       expect(result.teacher).toEqual({ id: 'teacher-1', name: 'Nguyen Van A' });
@@ -251,7 +241,7 @@ describe('AttendanceService', () => {
       teachersRepo.findOne.mockResolvedValue(teacher);
 
       await expect(
-        service.getSessionAttendance('user-1', 'session-1'),
+        service.getSessionAttendance('user-1', 'org-1', 'session-1'),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -259,7 +249,7 @@ describe('AttendanceService', () => {
       sessionsRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.getSessionAttendance('user-1', 'session-1'),
+        service.getSessionAttendance('user-1', 'org-1', 'session-1'),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -272,7 +262,11 @@ describe('AttendanceService', () => {
         makeEnrollment('s-1', 'SV001', 'Nguyen Van B'),
       ]);
 
-      const result = await service.getSessionAttendance('user-1', 'session-1');
+      const result = await service.getSessionAttendance(
+        'user-1',
+        'org-1',
+        'session-1',
+      );
 
       expect(enrollmentQb.where).toHaveBeenCalledWith(
         'enrollment.classId = :classId',
@@ -293,7 +287,11 @@ describe('AttendanceService', () => {
       });
       attendancesRepo.find.mockResolvedValue([]);
 
-      const result = await service.getSessionAttendance('user-1', 'session-1');
+      const result = await service.getSessionAttendance(
+        'user-1',
+        'org-1',
+        'session-1',
+      );
 
       expect(result.students[0].attendance).toBeNull();
     });
@@ -314,7 +312,11 @@ describe('AttendanceService', () => {
         },
       ]);
 
-      const result = await service.getSessionAttendance('user-1', 'session-1');
+      const result = await service.getSessionAttendance(
+        'user-1',
+        'org-1',
+        'session-1',
+      );
 
       expect(result.students[0].attendance).toEqual({
         id: 'att-1',
@@ -325,6 +327,32 @@ describe('AttendanceService', () => {
       });
     });
 
+    it('scopes the session and membership lookups to the current organization', async () => {
+      membershipsRepo.findOne.mockResolvedValue({
+        organizationId: 'org-1',
+        role: { name: 'Teacher' },
+      });
+      teachersRepo.findOne.mockResolvedValue(teacher);
+
+      await service.getSessionAttendance('user-1', 'org-1', 'session-1');
+
+      expect(sessionsRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ organizationId: 'org-1' }),
+        }),
+      );
+      expect(membershipsRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ organizationId: 'org-1' }),
+        }),
+      );
+      expect(teachersRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ organizationId: 'org-1' }),
+        }),
+      );
+    });
+
     it('rejects a STUDENT role', async () => {
       membershipsRepo.findOne.mockResolvedValue({
         organizationId: 'org-1',
@@ -332,7 +360,7 @@ describe('AttendanceService', () => {
       });
 
       await expect(
-        service.getSessionAttendance('user-1', 'session-1'),
+        service.getSessionAttendance('user-1', 'org-1', 'session-1'),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -365,6 +393,7 @@ describe('AttendanceService', () => {
         'user-1',
         'session-1',
         dto,
+        'org-1',
       );
 
       expect(dataSource.transaction).toHaveBeenCalled();
@@ -402,6 +431,7 @@ describe('AttendanceService', () => {
         'user-1',
         'session-1',
         dto,
+        'org-1',
       );
 
       expect(dataSource.transaction).toHaveBeenCalled();
@@ -433,7 +463,12 @@ describe('AttendanceService', () => {
         throw uniqueViolation;
       });
 
-      await service.updateSessionAttendance('user-1', 'session-1', dto);
+      await service.updateSessionAttendance(
+        'user-1',
+        'session-1',
+        dto,
+        'org-1',
+      );
 
       expect(txManager.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -467,6 +502,7 @@ describe('AttendanceService', () => {
         'user-1',
         'session-1',
         bulkDto,
+        'org-1',
       );
 
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
@@ -487,7 +523,7 @@ describe('AttendanceService', () => {
       );
 
       await expect(
-        service.updateSessionAttendance('user-1', 'session-1', dto),
+        service.updateSessionAttendance('user-1', 'session-1', dto, 'org-1'),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -501,6 +537,7 @@ describe('AttendanceService', () => {
         'user-1',
         'session-1',
         dto,
+        'org-1',
       );
 
       expect(teachersRepo.findOne).not.toHaveBeenCalled();
@@ -518,6 +555,7 @@ describe('AttendanceService', () => {
         'user-1',
         'session-1',
         dto,
+        'org-1',
       );
 
       expect(teachersRepo.findOne).not.toHaveBeenCalled();
@@ -538,10 +576,29 @@ describe('AttendanceService', () => {
         'user-1',
         'session-1',
         dto,
+        'org-1',
       );
 
       expect(dataSource.transaction).toHaveBeenCalled();
       expect(result.totalStudents).toBe(2);
+    });
+
+    it('scopes the session lookup and created rows to the current organization', async () => {
+      await service.updateSessionAttendance(
+        'user-1',
+        'session-1',
+        dto,
+        'org-1',
+      );
+
+      expect(sessionsRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ organizationId: 'org-1' }),
+        }),
+      );
+      expect(txManager.create).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 'org-1' }),
+      );
     });
 
     it('rejects a STUDENT who tries to mark attendance', async () => {
@@ -551,7 +608,7 @@ describe('AttendanceService', () => {
       });
 
       await expect(
-        service.updateSessionAttendance('user-1', 'session-1', dto),
+        service.updateSessionAttendance('user-1', 'session-1', dto, 'org-1'),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(dataSource.transaction).not.toHaveBeenCalled();
     });
@@ -562,7 +619,7 @@ describe('AttendanceService', () => {
       );
 
       await expect(
-        service.updateSessionAttendance('user-1', 'session-1', dto),
+        service.updateSessionAttendance('user-1', 'session-1', dto, 'org-1'),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(dataSource.transaction).not.toHaveBeenCalled();
     });
@@ -571,7 +628,7 @@ describe('AttendanceService', () => {
       enrollmentsRepo.createQueryBuilder.mockReturnValue(makeEnrollmentQb([]));
 
       await expect(
-        service.updateSessionAttendance('user-1', 'session-1', dto),
+        service.updateSessionAttendance('user-1', 'session-1', dto, 'org-1'),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(dataSource.transaction).not.toHaveBeenCalled();
     });
@@ -582,7 +639,7 @@ describe('AttendanceService', () => {
       );
 
       await expect(
-        service.updateSessionAttendance('user-1', 'session-1', dto),
+        service.updateSessionAttendance('user-1', 'session-1', dto, 'org-1'),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(dataSource.transaction).not.toHaveBeenCalled();
     });
@@ -596,6 +653,7 @@ describe('AttendanceService', () => {
         'user-1',
         'session-1',
         dto,
+        'org-1',
       );
 
       expect(dataSource.transaction).toHaveBeenCalled();
@@ -606,7 +664,7 @@ describe('AttendanceService', () => {
       sessionsRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.updateSessionAttendance('user-1', 'session-1', dto),
+        service.updateSessionAttendance('user-1', 'session-1', dto, 'org-1'),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(dataSource.transaction).not.toHaveBeenCalled();
     });

@@ -29,10 +29,6 @@ import { CreateSessionsDto } from './dto/create-sessions.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { CalendarQueryDto } from './dto/calendar-query.dto';
 
-export interface OrgContextOptions {
-  organizationId?: string;
-}
-
 export type CalendarRoleKind = 'manager' | 'teacher' | 'student' | 'member';
 
 export interface CalendarClassRef {
@@ -126,39 +122,6 @@ export class SchedulesService {
     private readonly enrollmentsRepository: Repository<Enrollment>,
     private readonly dataSource: DataSource,
   ) {}
-
-  private async resolveOrganizationId(
-    userId: string,
-    requestedOrganizationId?: string,
-  ): Promise<string> {
-    const qb = this.membershipsRepository
-      .createQueryBuilder('membership')
-      .innerJoinAndSelect('membership.organization', 'organization')
-      .where('membership.userId = :userId', { userId })
-      .andWhere('membership.status = :status', {
-        status: MembershipStatus.ACTIVE,
-      });
-
-    if (requestedOrganizationId) {
-      qb.andWhere('membership.organizationId = :organizationId', {
-        organizationId: requestedOrganizationId,
-      });
-    }
-
-    qb.orderBy('membership.joinedAt', 'ASC')
-      .addOrderBy('membership.createdAt', 'ASC')
-      .limit(1);
-
-    const membership = await qb.getOne();
-
-    if (!membership) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    return membership.organizationId;
-  }
 
   private async assertIsAdminOrOwner(
     userId: string,
@@ -377,16 +340,10 @@ export class SchedulesService {
   }
 
   async create(
-    userId: string,
     classId: string,
     createScheduleDto: CreateScheduleDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const classEntity = await this.assertClassEditable(organizationId, classId);
     await this.assertBranchAndCourseActive(classEntity);
     const { dayOfWeek, startTime, endTime, room } = createScheduleDto;
@@ -421,16 +378,10 @@ export class SchedulesService {
    * every session passes.
    */
   async createBulk(
-    userId: string,
     classId: string,
     createSessionsDto: CreateSessionsDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const classEntity = await this.assertClassEditable(organizationId, classId);
     const sessions = createSessionsDto.sessions;
 
@@ -563,16 +514,7 @@ export class SchedulesService {
     );
   }
 
-  async findAll(
-    userId: string,
-    classId: string,
-    options: OrgContextOptions = {},
-  ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findAll(classId: string, organizationId: string) {
     await this.assertClassEditable(organizationId, classId);
 
     return this.schedulesRepository.find({
@@ -582,16 +524,10 @@ export class SchedulesService {
   }
 
   async update(
-    userId: string,
     id: string,
     updateScheduleDto: UpdateScheduleDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const schedule = await this.schedulesRepository.findOneBy({ id });
     if (!schedule) {
       throw new NotFoundException('Lịch học không tồn tại');
@@ -637,11 +573,7 @@ export class SchedulesService {
     return this.schedulesRepository.save(schedule);
   }
 
-  async remove(userId: string, id: string, options: OrgContextOptions = {}) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
+  async remove(userId: string, id: string, organizationId: string) {
     await this.assertIsAdminOrOwner(userId, organizationId);
 
     const schedule = await this.schedulesRepository.findOneBy({ id });
@@ -670,12 +602,8 @@ export class SchedulesService {
   async getCalendar(
     userId: string,
     query: CalendarQueryDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<CalendarResponse> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      query.organizationId ?? options.organizationId,
-    );
     const role = await this.resolveRoleKind(userId, organizationId);
 
     this.validateCalendarRange(query.startDate, query.endDate);

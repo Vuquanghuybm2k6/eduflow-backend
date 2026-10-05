@@ -64,17 +64,7 @@ describe('ImportsService', () => {
   let excelService: ExcelService;
   let businessValidator: { addBusinessErrors: jest.Mock };
   let teacherBusinessValidator: { addBusinessErrors: jest.Mock };
-  let queryBuilderMock: {
-    innerJoinAndSelect: jest.Mock;
-    where: jest.Mock;
-    andWhere: jest.Mock;
-    orderBy: jest.Mock;
-    addOrderBy: jest.Mock;
-    limit: jest.Mock;
-    getOne: jest.Mock;
-  };
   let membershipsRepository: {
-    createQueryBuilder: jest.Mock;
     findOne: jest.Mock;
   };
   let importJobsRepository: {
@@ -103,17 +93,7 @@ describe('ImportsService', () => {
     teacherBusinessValidator = {
       addBusinessErrors: jest.fn().mockResolvedValue(undefined),
     };
-    queryBuilderMock = {
-      innerJoinAndSelect: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      orderBy: jest.fn().mockReturnThis(),
-      addOrderBy: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      getOne: jest.fn().mockResolvedValue({ organizationId: 'org-1' }),
-    };
     membershipsRepository = {
-      createQueryBuilder: jest.fn().mockReturnValue(queryBuilderMock),
       findOne: jest.fn().mockResolvedValue({
         id: 'm1',
         userId: 'user-1',
@@ -246,6 +226,7 @@ describe('ImportsService', () => {
     const preview = await service.previewStudentImport(
       makeFile({ buffer, size: buffer.length }),
       'user-1',
+      'org-1',
     );
 
     expect(preview.totalRows).toBe(2);
@@ -279,6 +260,7 @@ describe('ImportsService', () => {
     const preview = await service.previewStudentImport(
       makeFile({ buffer, size: buffer.length }),
       'user-1',
+      'org-1',
     );
 
     expect(preview.totalRows).toBe(1);
@@ -313,6 +295,7 @@ describe('ImportsService', () => {
     const preview = await service.previewStudentImport(
       makeFile({ buffer, size: buffer.length }),
       'user-1',
+      'org-1',
     );
 
     expect(preview.totalRows).toBe(1);
@@ -330,6 +313,7 @@ describe('ImportsService', () => {
     const preview = await service.previewStudentImport(
       makeFile({ buffer, size: buffer.length }),
       'user-1',
+      'org-1',
     );
 
     expect(preview.totalRows).toBe(2);
@@ -348,6 +332,7 @@ describe('ImportsService', () => {
     const preview = await service.previewStudentImport(
       makeFile({ buffer, size: buffer.length }),
       'user-1',
+      'org-1',
     );
 
     expect(preview.totalRows).toBe(2);
@@ -385,6 +370,7 @@ describe('ImportsService', () => {
       service.previewStudentImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       ),
     ).rejects.toThrow('Cột bị lặp: Giới tính');
   });
@@ -407,6 +393,7 @@ describe('ImportsService', () => {
     const preview = await service.previewStudentImport(
       makeFile({ buffer, size: buffer.length }),
       'user-1',
+      'org-1',
     );
 
     expect(preview.totalRows).toBe(1);
@@ -438,6 +425,7 @@ describe('ImportsService', () => {
     const preview = await service.previewStudentImport(
       makeFile({ buffer, size: buffer.length }),
       'user-1',
+      'org-1',
     );
 
     expect(preview.totalRows).toBe(2);
@@ -463,13 +451,14 @@ describe('ImportsService', () => {
       service.previewStudentImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       ),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('rejects when no file is provided', async () => {
     await expect(
-      service.previewStudentImport(undefined, 'user-1'),
+      service.previewStudentImport(undefined, 'user-1', 'org-1'),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -480,34 +469,12 @@ describe('ImportsService', () => {
       service.previewStudentImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       ),
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('throws ForbiddenException when the user has no active membership in the organization', async () => {
-    queryBuilderMock.getOne.mockResolvedValue(null);
-
-    const buffer = await buildXlsx(STUDENT_HEADERS, [
-      [
-        'ST001',
-        'Nguyen A',
-        'a@gmail.com',
-        '0901234567',
-        '2006-01-01',
-        'MALE',
-        'HN01',
-      ],
-    ]);
-
-    await expect(
-      service.previewStudentImport(
-        makeFile({ buffer, size: buffer.length }),
-        'user-1',
-      ),
-    ).rejects.toThrow(ForbiddenException);
-  });
-
-  it('passes the resolved organizationId to the business validator', async () => {
+  it('passes the current organizationId to the business validator', async () => {
     const buffer = await buildXlsx(STUDENT_HEADERS, [
       [
         'ST001',
@@ -523,6 +490,7 @@ describe('ImportsService', () => {
     await service.previewStudentImport(
       makeFile({ buffer, size: buffer.length }),
       'user-1',
+      'org-1',
     );
 
     expect(businessValidator.addBusinessErrors).toHaveBeenCalledTimes(1);
@@ -532,7 +500,7 @@ describe('ImportsService', () => {
     );
   });
 
-  it('respects a requested organizationId', async () => {
+  it('persists the preview job under the current organization', async () => {
     const buffer = await buildXlsx(STUDENT_HEADERS, [
       [
         'ST001',
@@ -548,12 +516,15 @@ describe('ImportsService', () => {
     await service.previewStudentImport(
       makeFile({ buffer, size: buffer.length }),
       'user-1',
-      { organizationId: 'org-2' },
+      'org-1',
     );
 
-    expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
-      expect.stringContaining('membership.organizationId = :organizationId'),
-      { organizationId: 'org-2' },
+    expect(importJobsRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        entityType: 'student',
+        createdBy: 'user-1',
+      }),
     );
   });
 
@@ -596,6 +567,7 @@ describe('ImportsService', () => {
       const preview = await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(preview.total).toBe(2);
@@ -634,6 +606,7 @@ describe('ImportsService', () => {
       const preview = await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(preview.total).toBe(1);
@@ -673,6 +646,7 @@ describe('ImportsService', () => {
       const preview = await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(preview.total).toBe(1);
@@ -712,6 +686,7 @@ describe('ImportsService', () => {
       const preview = await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(preview.total).toBe(1);
@@ -732,6 +707,7 @@ describe('ImportsService', () => {
       const preview = await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(preview.total).toBe(2);
@@ -755,6 +731,7 @@ describe('ImportsService', () => {
       const preview = await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(preview.total).toBe(2);
@@ -793,6 +770,7 @@ describe('ImportsService', () => {
       const preview = await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(preview.total).toBe(2);
@@ -823,6 +801,7 @@ describe('ImportsService', () => {
       const preview = await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(preview.total).toBe(1);
@@ -860,6 +839,7 @@ describe('ImportsService', () => {
       const preview = await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(preview.total).toBe(1);
@@ -890,6 +870,7 @@ describe('ImportsService', () => {
         service.previewTeacherImport(
           makeFile({ buffer, size: buffer.length }),
           'user-1',
+          'org-1',
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -905,32 +886,18 @@ describe('ImportsService', () => {
         service.previewTeacherImport(
           makeFile({ buffer, size: buffer.length }),
           'user-1',
+          'org-1',
         ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('rejects when no file is provided', async () => {
       await expect(
-        service.previewTeacherImport(undefined, 'user-1'),
+        service.previewTeacherImport(undefined, 'user-1', 'org-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('throws ForbiddenException when the user has no active membership', async () => {
-      queryBuilderMock.getOne.mockResolvedValue(null);
-
-      const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
-        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', '', 'BR001'],
-      ]);
-
-      await expect(
-        service.previewTeacherImport(
-          makeFile({ buffer, size: buffer.length }),
-          'user-1',
-        ),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('passes the resolved organizationId to the teacher business validator', async () => {
+    it('passes the current organizationId to the teacher business validator', async () => {
       const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
         ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', '', 'BR001'],
       ]);
@@ -938,6 +905,7 @@ describe('ImportsService', () => {
       await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(teacherBusinessValidator.addBusinessErrors).toHaveBeenCalledTimes(
@@ -946,23 +914,6 @@ describe('ImportsService', () => {
       expect(teacherBusinessValidator.addBusinessErrors).toHaveBeenCalledWith(
         expect.arrayContaining([expect.objectContaining({ rowNumber: 2 })]),
         'org-1',
-      );
-    });
-
-    it('respects a requested organizationId', async () => {
-      const buffer = await buildTeacherXlsx(TEACHER_IMPORT_HEADERS, [
-        ['a@gmail.com', 'Nguyen A', 'GV001', '', '', '', '', '', 'BR001'],
-      ]);
-
-      await service.previewTeacherImport(
-        makeFile({ buffer, size: buffer.length }),
-        'user-1',
-        { organizationId: 'org-2' },
-      );
-
-      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
-        expect.stringContaining('membership.organizationId = :organizationId'),
-        { organizationId: 'org-2' },
       );
     });
 
@@ -996,6 +947,7 @@ describe('ImportsService', () => {
       const preview = await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(preview.importJobId).toBeDefined();
@@ -1039,6 +991,7 @@ describe('ImportsService', () => {
       await service.previewTeacherImport(
         makeFile({ buffer, size: buffer.length }),
         'user-1',
+        'org-1',
       );
 
       expect(teacherImportExecutor.execute).not.toHaveBeenCalled();
@@ -1088,7 +1041,11 @@ describe('ImportsService', () => {
           new ConflictException('Email "dup@gmail.com" already exists'),
         );
 
-      const result = await service.confirmStudentImport('job-1', 'user-1');
+      const result = await service.confirmStudentImport(
+        'job-1',
+        'user-1',
+        'org-1',
+      );
 
       expect(result.total).toBe(2);
       expect(result.success).toBe(1);
@@ -1097,6 +1054,10 @@ describe('ImportsService', () => {
         'SUCCESS',
       );
       expect(result.rows.find((r) => r.rowNumber === 3)?.status).toBe('FAILED');
+      expect(studentImportExecutor.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'row-1' }),
+        'org-1',
+      );
       expect(importJobRowsRepository.update).toHaveBeenCalledWith(
         'row-1',
         expect.objectContaining({ status: 'SUCCESS' }),
@@ -1110,8 +1071,11 @@ describe('ImportsService', () => {
           ],
         }),
       );
+      expect(importJobsRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 'job-1', organizationId: 'org-1' },
+      });
       expect(importJobsRepository.update).toHaveBeenCalledWith(
-        'job-1',
+        { id: 'job-1', organizationId: 'org-1' },
         expect.objectContaining({
           status: 'COMPLETED',
           successRows: 1,
@@ -1120,12 +1084,24 @@ describe('ImportsService', () => {
       );
     });
 
+    it('rejects when the actor has no active membership', async () => {
+      membershipsRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.confirmStudentImport('job-1', 'user-1', 'org-1'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(importJobsRepository.findOne).not.toHaveBeenCalled();
+    });
+
     it('throws NotFound when the job belongs to another organization', async () => {
       importJobsRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.confirmStudentImport('job-1', 'user-1'),
+        service.confirmStudentImport('job-1', 'user-1', 'org-1'),
       ).rejects.toThrow(NotFoundException);
+      expect(importJobsRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 'job-1', organizationId: 'org-1' },
+      });
     });
 
     it('rejects a job that is not a student import', async () => {
@@ -1135,7 +1111,7 @@ describe('ImportsService', () => {
       });
 
       await expect(
-        service.confirmStudentImport('job-1', 'user-1'),
+        service.confirmStudentImport('job-1', 'user-1', 'org-1'),
       ).rejects.toThrow(BadRequestException);
       expect(importJobsRepository.update).not.toHaveBeenCalled();
     });
@@ -1180,7 +1156,11 @@ describe('ImportsService', () => {
         );
       }
 
-      const result = await service.confirmStudentImport('job-1', 'user-1');
+      const result = await service.confirmStudentImport(
+        'job-1',
+        'user-1',
+        'org-1',
+      );
 
       expect(result.failed).toBe(details.length);
       result.rows.forEach((r, index) => {
@@ -1199,7 +1179,7 @@ describe('ImportsService', () => {
       });
 
       await expect(
-        service.confirmStudentImport('job-1', 'user-1'),
+        service.confirmStudentImport('job-1', 'user-1', 'org-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -1208,7 +1188,7 @@ describe('ImportsService', () => {
       importJobsRepository.update.mockResolvedValueOnce({ affected: 0 });
 
       await expect(
-        service.confirmStudentImport('job-1', 'user-1'),
+        service.confirmStudentImport('job-1', 'user-1', 'org-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -1216,7 +1196,11 @@ describe('ImportsService', () => {
       importJobsRepository.findOne.mockResolvedValue(confirmedJob);
       importJobRowsRepository.find.mockResolvedValue([]);
 
-      const result = await service.confirmStudentImport('job-1', 'user-1');
+      const result = await service.confirmStudentImport(
+        'job-1',
+        'user-1',
+        'org-1',
+      );
 
       expect(result.success).toBe(0);
       expect(result.failed).toBe(0);
@@ -1274,7 +1258,11 @@ describe('ImportsService', () => {
           new ConflictException('Teacher code "GV002" already exists'),
         );
 
-      const result = await service.confirmTeacherImport('job-1', 'user-1');
+      const result = await service.confirmTeacherImport(
+        'job-1',
+        'user-1',
+        'org-1',
+      );
 
       expect(result.total).toBe(3);
       expect(result.success).toBe(1);
@@ -1287,6 +1275,10 @@ describe('ImportsService', () => {
       expect(result.rows.find((r) => r.rowNumber === 4)?.status).toBe('FAILED');
 
       expect(teacherImportExecutor.execute).toHaveBeenCalledTimes(2);
+      expect(teacherImportExecutor.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'row-1' }),
+        'org-1',
+      );
       expect(importJobRowsRepository.update).toHaveBeenCalledWith(
         'row-1',
         expect.objectContaining({ status: 'SUCCESS' }),
@@ -1307,8 +1299,11 @@ describe('ImportsService', () => {
         'row-3',
         expect.anything(),
       );
+      expect(importJobsRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 'job-1', organizationId: 'org-1' },
+      });
       expect(importJobsRepository.update).toHaveBeenCalledWith(
-        'job-1',
+        { id: 'job-1', organizationId: 'org-1' },
         expect.objectContaining({
           status: 'COMPLETED',
           successRows: 1,
@@ -1322,8 +1317,11 @@ describe('ImportsService', () => {
       importJobsRepository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.confirmTeacherImport('job-1', 'user-1'),
+        service.confirmTeacherImport('job-1', 'user-1', 'org-1'),
       ).rejects.toThrow(NotFoundException);
+      expect(importJobsRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 'job-1', organizationId: 'org-1' },
+      });
     });
 
     it('rejects a job that is not a teacher import', async () => {
@@ -1333,7 +1331,7 @@ describe('ImportsService', () => {
       });
 
       await expect(
-        service.confirmTeacherImport('job-1', 'user-1'),
+        service.confirmTeacherImport('job-1', 'user-1', 'org-1'),
       ).rejects.toThrow(BadRequestException);
       expect(importJobsRepository.update).not.toHaveBeenCalled();
     });
@@ -1345,7 +1343,7 @@ describe('ImportsService', () => {
       });
 
       await expect(
-        service.confirmTeacherImport('job-1', 'user-1'),
+        service.confirmTeacherImport('job-1', 'user-1', 'org-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -1354,7 +1352,7 @@ describe('ImportsService', () => {
       importJobsRepository.update.mockResolvedValueOnce({ affected: 0 });
 
       await expect(
-        service.confirmTeacherImport('job-1', 'user-1'),
+        service.confirmTeacherImport('job-1', 'user-1', 'org-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -1379,7 +1377,11 @@ describe('ImportsService', () => {
         },
       ]);
 
-      const result = await service.confirmTeacherImport('job-1', 'user-1');
+      const result = await service.confirmTeacherImport(
+        'job-1',
+        'user-1',
+        'org-1',
+      );
 
       expect(teacherImportExecutor.execute).toHaveBeenCalledTimes(2);
       expect(result.failed).toBe(1);
@@ -1398,7 +1400,7 @@ describe('ImportsService', () => {
       });
 
       await expect(
-        service.confirmTeacherImport('job-1', 'user-1'),
+        service.confirmTeacherImport('job-1', 'user-1', 'org-1'),
       ).rejects.toThrow(ForbiddenException);
       expect(importJobsRepository.findOne).not.toHaveBeenCalled();
     });

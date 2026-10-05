@@ -23,10 +23,6 @@ import {
 import { Branch, BranchStatus } from '../branches/entities/branch.entity';
 import { RoleCode } from '../authorization/enums/role.enum';
 
-export interface OrgContextOptions {
-  organizationId?: string;
-}
-
 @Injectable()
 export class StudentsService {
   constructor(
@@ -40,41 +36,6 @@ export class StudentsService {
     @InjectRepository(Branch)
     private readonly branchesRepository: Repository<Branch>,
   ) {}
-
-  async resolveOrganizationId(
-    userId: string,
-    requestedOrganizationId?: string,
-  ): Promise<string> {
-    const qb = this.membershipsRepository
-      .createQueryBuilder('membership')
-      .innerJoinAndSelect('membership.organization', 'organization')
-      .where('membership.userId = :userId', { userId })
-      .andWhere('membership.status = :status', {
-        status: MembershipStatus.ACTIVE,
-      });
-
-    if (requestedOrganizationId) {
-      // nếu người dùng chỉ định org thì lấy theo yêu cầu người dùng
-      qb.andWhere('membership.organizationId = :organizationId', {
-        organizationId: requestedOrganizationId,
-      });
-    }
-
-    // nếu người dùng không chỉ định org thì sẽ ưu tiên org mà user tham gia sớm nhất
-    qb.orderBy('membership.joinedAt', 'ASC')
-      .addOrderBy('membership.createdAt', 'ASC')
-      .limit(1);
-
-    const membership = await qb.getOne();
-
-    if (!membership) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    return membership.organizationId;
-  }
 
   async assertIsAdminOrOwner(userId: string, organizationId: string) {
     const membership = await this.membershipsRepository.findOne({
@@ -175,12 +136,8 @@ export class StudentsService {
   async create(
     actorUserId: string,
     createStudentDto: CreateStudentDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      actorUserId,
-      options.organizationId,
-    );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
     await this.assertStudentCodeAvailable(
       organizationId,
@@ -238,12 +195,8 @@ export class StudentsService {
 
   async findAll(
     actorUserId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<Student[]> {
-    const organizationId = await this.resolveOrganizationId(
-      actorUserId,
-      options.organizationId,
-    );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
     return this.studentsRepository.find({
@@ -253,29 +206,13 @@ export class StudentsService {
     });
   }
 
-  async findOne(
-    actorUserId: string,
-    id: string,
-    options: OrgContextOptions = {},
-  ) {
-    const organizationId = await this.resolveOrganizationId(
-      actorUserId,
-      options.organizationId,
-    );
+  async findOne(actorUserId: string, id: string, organizationId: string) {
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
     return this.findStudentOrThrow(id, organizationId);
   }
 
-  async findMe(
-    userId: string,
-    options: OrgContextOptions = {},
-  ): Promise<Student> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findMe(userId: string, organizationId: string): Promise<Student> {
     const student = await this.studentsRepository.findOne({
       where: { userId, organizationId },
       relations: { user: true, branches: true },
@@ -294,12 +231,8 @@ export class StudentsService {
     actorUserId: string,
     id: string,
     updateStudentDto: UpdateStudentDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      actorUserId,
-      options.organizationId,
-    );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
     const student = await this.findStudentOrThrow(id, organizationId);
@@ -344,12 +277,8 @@ export class StudentsService {
     actorUserId: string,
     id: string,
     updateStudentStatusDto: UpdateStudentStatusDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      actorUserId,
-      options.organizationId,
-    );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
     const student = await this.findStudentOrThrow(id, organizationId);

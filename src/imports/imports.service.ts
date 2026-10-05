@@ -62,10 +62,6 @@ import { IMPORT_MAX_FILE_SIZE_BYTES } from './validators/import-file.validator';
 import { ImportFileValidator } from './validators/import-file.validator';
 import { ImportHeaderValidator } from './validators/import-header.validator';
 
-export interface OrgContextOptions {
-  organizationId?: string;
-}
-
 @Injectable()
 export class ImportsService {
   constructor(
@@ -98,13 +94,8 @@ export class ImportsService {
   async previewStudentImport(
     file: Express.Multer.File | undefined,
     userId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<ImportPreview> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const worksheet = await this.fileValidator.validate(file);
     const headers = this.headerValidator.validate(
       this.excelService.getHeaders(worksheet),
@@ -140,13 +131,8 @@ export class ImportsService {
   async previewTeacherImport(
     file: Express.Multer.File | undefined,
     userId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<TeacherImportPreview> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const worksheet = await this.fileValidator.validate(file, {
       maxFileSizeBytes: TEACHER_IMPORT_MAX_FILE_SIZE_BYTES,
       maxRows: TEACHER_IMPORT_MAX_ROWS,
@@ -181,12 +167,8 @@ export class ImportsService {
   async confirmStudentImport(
     importJobId: string,
     userId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<ImportJobResult> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
     await this.assertIsAdminOrOwner(userId, organizationId);
 
     const importJob = await this.importJobsRepository.findOne({
@@ -259,12 +241,15 @@ export class ImportsService {
 
     rowResults.sort((a, b) => a.rowNumber - b.rowNumber);
 
-    await this.importJobsRepository.update(importJob.id, {
-      status: ImportJobStatus.COMPLETED,
-      successRows: successCount,
-      failedRows: failCount,
-      completedAt: new Date(),
-    });
+    await this.importJobsRepository.update(
+      { id: importJob.id, organizationId },
+      {
+        status: ImportJobStatus.COMPLETED,
+        successRows: successCount,
+        failedRows: failCount,
+        completedAt: new Date(),
+      },
+    );
 
     return {
       importJobId: importJob.id,
@@ -278,12 +263,8 @@ export class ImportsService {
   async confirmTeacherImport(
     importJobId: string,
     userId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<ImportJobResult> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
     await this.assertIsAdminOrOwner(userId, organizationId);
 
     const importJob = await this.importJobsRepository.findOne({
@@ -356,12 +337,15 @@ export class ImportsService {
 
     rowResults.sort((a, b) => a.rowNumber - b.rowNumber);
 
-    await this.importJobsRepository.update(importJob.id, {
-      status: ImportJobStatus.COMPLETED,
-      successRows: successCount,
-      failedRows: failCount,
-      completedAt: new Date(),
-    });
+    await this.importJobsRepository.update(
+      { id: importJob.id, organizationId },
+      {
+        status: ImportJobStatus.COMPLETED,
+        successRows: successCount,
+        failedRows: failCount,
+        completedAt: new Date(),
+      },
+    );
 
     return {
       importJobId: importJob.id,
@@ -380,7 +364,11 @@ export class ImportsService {
     }
 
     const result = await this.importJobsRepository.update(
-      { id: importJob.id, status: ImportJobStatus.PREVIEW },
+      {
+        id: importJob.id,
+        organizationId: importJob.organizationId,
+        status: ImportJobStatus.PREVIEW,
+      },
       { status: ImportJobStatus.PROCESSING, startedAt: new Date() },
     );
 
@@ -577,40 +565,6 @@ export class ImportsService {
         'Only an owner or admin can perform this action',
       );
     }
-  }
-
-  private async resolveOrganizationId(
-    userId: string,
-    requestedOrganizationId?: string,
-  ): Promise<string> {
-    const queryBuilder = this.membershipsRepository
-      .createQueryBuilder('membership')
-      .innerJoinAndSelect('membership.organization', 'organization')
-      .where('membership.userId = :userId', { userId })
-      .andWhere('membership.status = :status', {
-        status: MembershipStatus.ACTIVE,
-      });
-
-    if (requestedOrganizationId) {
-      queryBuilder.andWhere('membership.organizationId = :organizationId', {
-        organizationId: requestedOrganizationId,
-      });
-    }
-
-    queryBuilder
-      .orderBy('membership.joinedAt', 'ASC')
-      .addOrderBy('membership.createdAt', 'ASC')
-      .limit(1);
-
-    const membership = await queryBuilder.getOne();
-
-    if (!membership) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    return membership.organizationId;
   }
 
   private parseRows(

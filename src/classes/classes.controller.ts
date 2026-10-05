@@ -13,6 +13,7 @@ import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 import { FindClassesQueryDto } from './dto/find-classes-query.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 
 @Controller('classes')
 export class ClassesController {
@@ -20,60 +21,51 @@ export class ClassesController {
 
   @Post()
   create(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Body() createClassDto: CreateClassDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.classesService.create(userId, createClassDto, {
-      organizationId,
-    });
+    return this.classesService.create(createClassDto, organizationId);
   }
 
   @Get()
   findAll(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Query() query: FindClassesQueryDto,
   ) {
-    const { organizationId, ...filters } = query;
-    return this.classesService.findAll(userId, { organizationId }, filters);
+    return this.classesService.findAll(query, organizationId);
   }
 
   @Get(':id')
   findOne(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.classesService.findOne(userId, id, { organizationId });
+    return this.classesService.findOne(id, organizationId);
   }
 
   @Patch(':id')
   update(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
     @Body() updateClassDto: UpdateClassDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.classesService.update(userId, id, updateClassDto, {
-      organizationId,
-    });
+    return this.classesService.update(id, updateClassDto, organizationId);
   }
 
   @Delete(':id')
   remove(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.classesService.remove(userId, id, { organizationId });
+    return this.classesService.remove(userId, id, organizationId);
   }
 
   @Post(':id/duplicate')
   duplicate(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.classesService.duplicate(userId, id, { organizationId });
+    return this.classesService.duplicate(id, organizationId);
   }
 }

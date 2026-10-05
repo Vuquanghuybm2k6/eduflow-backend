@@ -19,13 +19,11 @@ const organizationId = 'org-1';
 describe('StudentImportTemplateService', () => {
   let service: StudentImportTemplateService;
   let studentsService: {
-    resolveOrganizationId: jest.Mock;
     assertIsAdminOrOwner: jest.Mock;
   };
 
   beforeEach(async () => {
     studentsService = {
-      resolveOrganizationId: jest.fn().mockResolvedValue(organizationId),
       assertIsAdminOrOwner: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -43,12 +41,9 @@ describe('StudentImportTemplateService', () => {
   });
 
   describe('authorization', () => {
-    it('resolves the organization context and requires an admin', async () => {
-      await service.download(actorUserId);
+    it('requires a manager in the CURRENT organization', async () => {
+      await service.download(actorUserId, organizationId);
 
-      expect(studentsService.resolveOrganizationId).toHaveBeenCalledWith(
-        actorUserId,
-      );
       expect(studentsService.assertIsAdminOrOwner).toHaveBeenCalledWith(
         actorUserId,
         organizationId,
@@ -56,7 +51,7 @@ describe('StudentImportTemplateService', () => {
     });
 
     it('allows an owner to download the Vietnamese template file', async () => {
-      const result = await service.download(actorUserId);
+      const result = await service.download(actorUserId, organizationId);
 
       const expected = readFileSync(
         join(
@@ -71,7 +66,7 @@ describe('StudentImportTemplateService', () => {
     });
 
     it('downloads the English template file when requested', async () => {
-      const result = await service.download(actorUserId, 'en');
+      const result = await service.download(actorUserId, organizationId, 'en');
 
       const expected = readFileSync(
         join(
@@ -92,21 +87,9 @@ describe('StudentImportTemplateService', () => {
         ),
       );
 
-      await expect(service.download(actorUserId)).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
-
-    it('rejects a user with no membership in the organization', async () => {
-      studentsService.resolveOrganizationId.mockRejectedValue(
-        new ForbiddenException(
-          'User does not have access to this organization',
-        ),
-      );
-
-      await expect(service.download(actorUserId)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.download(actorUserId, organizationId),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });
@@ -121,7 +104,6 @@ describe('StudentImportTemplateService (real Excel round-trip)', () => {
         {
           provide: StudentsService,
           useValue: {
-            resolveOrganizationId: jest.fn().mockResolvedValue('org-1'),
             assertIsAdminOrOwner: jest.fn().mockResolvedValue(undefined),
           },
         },
@@ -135,7 +117,7 @@ describe('StudentImportTemplateService (real Excel round-trip)', () => {
   });
 
   it('serves the Vietnamese sample workbook with valid headers and both worksheets', async () => {
-    const result = await service.download('user-manager');
+    const result = await service.download('user-manager', 'org-1');
 
     const excelService = new ExcelService();
     const workbook = await excelService.readWorkbook(result.buffer);

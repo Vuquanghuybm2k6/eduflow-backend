@@ -21,10 +21,6 @@ import {
   EnrollmentStatus,
 } from '../enrollments/entities/enrollment.entity';
 
-export interface OrgContextOptions {
-  organizationId?: string;
-}
-
 export interface ClassAttendanceSummaryResponse {
   classId: string;
   totalSessions: number;
@@ -69,7 +65,7 @@ export interface AttendanceHistoryResponse {
   limit: number;
 }
 
-export interface AttendanceHistoryOptions extends OrgContextOptions {
+export interface AttendanceHistoryOptions {
   classId?: string;
   page?: number;
   limit?: number;
@@ -114,7 +110,7 @@ export interface ClassAttendanceCardsResponse {
   limit: number;
 }
 
-export interface ClassAttendanceCardsOptions extends OrgContextOptions {
+export interface ClassAttendanceCardsOptions {
   search?: string;
   branchId?: string;
   teacherId?: string;
@@ -146,7 +142,7 @@ export interface ClassStudentsAttendanceResponse {
   rows: ClassStudentAttendanceRow[];
 }
 
-export interface ClassStudentsAttendanceOptions extends OrgContextOptions {
+export interface ClassStudentsAttendanceOptions {
   startDate?: string;
   endDate?: string;
 }
@@ -186,39 +182,6 @@ export class ReportsService {
     private readonly enrollmentsRepository: Repository<Enrollment>,
   ) {}
 
-  private async resolveOrganizationId(
-    userId: string,
-    requestedOrganizationId?: string,
-  ): Promise<string> {
-    const qb = this.membershipsRepository
-      .createQueryBuilder('membership')
-      .innerJoinAndSelect('membership.organization', 'organization')
-      .where('membership.userId = :userId', { userId })
-      .andWhere('membership.status = :status', {
-        status: MembershipStatus.ACTIVE,
-      });
-
-    if (requestedOrganizationId) {
-      qb.andWhere('membership.organizationId = :organizationId', {
-        organizationId: requestedOrganizationId,
-      });
-    }
-
-    qb.orderBy('membership.joinedAt', 'ASC')
-      .addOrderBy('membership.createdAt', 'ASC')
-      .limit(1);
-
-    const membership = await qb.getOne();
-
-    if (!membership) {
-      throw new NotFoundException(
-        'User does not have access to this organization',
-      );
-    }
-
-    return membership.organizationId;
-  }
-
   private roundRate(rate: number): number {
     return Math.round(rate * 100) / 100;
   }
@@ -226,13 +189,8 @@ export class ReportsService {
   async getClassAttendanceSummary(
     userId: string,
     classId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<ClassAttendanceSummaryResponse> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const classEntity = await this.classesRepository.findOneBy({
       id: classId,
       organizationId,
@@ -313,13 +271,8 @@ export class ReportsService {
   async getStudentAttendanceSummary(
     userId: string,
     studentId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<StudentAttendanceSummaryResponse> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const student = await this.studentsRepository.findOneBy({
       id: studentId,
       organizationId,
@@ -363,13 +316,8 @@ export class ReportsService {
     userId: string,
     studentId: string,
     classId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<StudentAttendanceSummaryResponse> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const student = await this.studentsRepository.findOneBy({
       id: studentId,
       organizationId,
@@ -428,13 +376,9 @@ export class ReportsService {
   async getStudentAttendanceHistory(
     userId: string,
     studentId: string,
+    organizationId: string,
     options: AttendanceHistoryOptions = {},
   ): Promise<AttendanceHistoryResponse> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const student = await this.studentsRepository.findOneBy({
       id: studentId,
       organizationId,
@@ -502,14 +446,9 @@ export class ReportsService {
 
   async getClassAttendanceCards(
     userId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
     filters: ClassAttendanceCardsOptions = {},
   ): Promise<ClassAttendanceCardsResponse> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 10;
     const search = (filters.search ?? '').trim();
@@ -569,13 +508,9 @@ export class ReportsService {
   async getClassStudentsAttendance(
     userId: string,
     classId: string,
+    organizationId: string,
     options: ClassStudentsAttendanceOptions = {},
   ): Promise<ClassStudentsAttendanceResponse> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const classEntity = await this.classesRepository.findOne({
       where: { id: classId, organizationId },
       relations: { teacher: { user: true } },

@@ -3,10 +3,6 @@ import { ClassLifecycleStatus, ClassStatus } from '../entities/class.entity';
 
 export class FindClassesQueryDto {
   @IsOptional()
-  @IsUUID()
-  organizationId?: string;
-
-  @IsOptional()
   @IsEnum(ClassStatus)
   status?: ClassStatus;
 

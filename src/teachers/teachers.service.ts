@@ -22,10 +22,6 @@ import {
 import { Class, ClassLifecycleStatus } from '../classes/entities/class.entity';
 import { Branch, BranchStatus } from '../branches/entities/branch.entity';
 
-export interface OrgContextOptions {
-  organizationId?: string;
-}
-
 const TEACHER_ROLE_NAME = 'Teacher';
 
 @Injectable()
@@ -43,39 +39,6 @@ export class TeachersService {
     @InjectRepository(Branch)
     private readonly branchesRepository: Repository<Branch>,
   ) {}
-
-  async resolveOrganizationId(
-    userId: string,
-    requestedOrganizationId?: string,
-  ): Promise<string> {
-    const qb = this.membershipsRepository
-      .createQueryBuilder('membership')
-      .innerJoinAndSelect('membership.organization', 'organization')
-      .where('membership.userId = :userId', { userId })
-      .andWhere('membership.status = :status', {
-        status: MembershipStatus.ACTIVE,
-      });
-
-    if (requestedOrganizationId) {
-      qb.andWhere('membership.organizationId = :organizationId', {
-        organizationId: requestedOrganizationId,
-      });
-    }
-
-    qb.orderBy('membership.joinedAt', 'ASC')
-      .addOrderBy('membership.createdAt', 'ASC')
-      .limit(1);
-
-    const membership = await qb.getOne();
-
-    if (!membership) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    return membership.organizationId;
-  }
 
   async assertIsAdminOrOwner(userId: string, organizationId: string) {
     const membership = await this.membershipsRepository.findOne({
@@ -192,12 +155,8 @@ export class TeachersService {
   async create(
     actorUserId: string,
     createTeacherDto: CreateTeacherDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      actorUserId,
-      options.organizationId,
-    );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
     await this.assertTeacherCodeAvailable(
       organizationId,
@@ -257,12 +216,8 @@ export class TeachersService {
 
   async findAll(
     actorUserId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<Teacher[]> {
-    const organizationId = await this.resolveOrganizationId(
-      actorUserId,
-      options.organizationId,
-    );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
     return this.teachersRepository.find({
@@ -272,29 +227,13 @@ export class TeachersService {
     });
   }
 
-  async findOne(
-    actorUserId: string,
-    id: string,
-    options: OrgContextOptions = {},
-  ) {
-    const organizationId = await this.resolveOrganizationId(
-      actorUserId,
-      options.organizationId,
-    );
+  async findOne(actorUserId: string, id: string, organizationId: string) {
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
     return this.findTeacherOrThrow(id, organizationId);
   }
 
-  async findMe(
-    userId: string,
-    options: OrgContextOptions = {},
-  ): Promise<Teacher> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findMe(userId: string, organizationId: string): Promise<Teacher> {
     const teacher = await this.teachersRepository.findOne({
       where: { userId, organizationId },
       relations: { user: true, branches: true },
@@ -311,9 +250,9 @@ export class TeachersService {
 
   async findMyClasses(
     userId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<Class[]> {
-    const teacher = await this.findMe(userId, options);
+    const teacher = await this.findMe(userId, organizationId);
 
     return this.classesRepository.find({
       where: { teacherId: teacher.id },
@@ -325,12 +264,8 @@ export class TeachersService {
     actorUserId: string,
     id: string,
     updateTeacherDto: UpdateTeacherDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      actorUserId,
-      options.organizationId,
-    );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
     const teacher = await this.findTeacherOrThrow(id, organizationId);
@@ -375,12 +310,8 @@ export class TeachersService {
     actorUserId: string,
     id: string,
     updateTeacherStatusDto: UpdateTeacherStatusDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      actorUserId,
-      options.organizationId,
-    );
     await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
     const teacher = await this.findTeacherOrThrow(id, organizationId);

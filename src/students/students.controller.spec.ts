@@ -81,13 +81,29 @@ describe('StudentsController', () => {
   });
 
   it('GET /students/import/template delegates to studentImportTemplateService.download', async () => {
-    await controller.downloadImportTemplate('user-1');
-    expect(templateServiceMock.download).toHaveBeenCalledWith('user-1', 'vi');
+    await controller.downloadImportTemplate(
+      { userId: 'user-1' },
+      { organizationId: 'org-1' },
+      {},
+    );
+    expect(templateServiceMock.download).toHaveBeenCalledWith(
+      { userId: 'user-1' },
+      'org-1',
+      'vi',
+    );
   });
 
   it('passes the requested language to studentImportTemplateService.download', async () => {
-    await controller.downloadImportTemplate('user-1', { lang: 'en' });
-    expect(templateServiceMock.download).toHaveBeenCalledWith('user-1', 'en');
+    await controller.downloadImportTemplate(
+      { userId: 'user-1' },
+      { organizationId: 'org-1' },
+      { lang: 'en' },
+    );
+    expect(templateServiceMock.download).toHaveBeenCalledWith(
+      { userId: 'user-1' },
+      'org-1',
+      'en',
+    );
   });
 });
 
@@ -108,6 +124,14 @@ describe('StudentsController /students/export (http)', () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
+    app.use((req, _res, next) => {
+      (req as { user?: unknown }).user = {
+        userId: 'user-1',
+        organizationId: 'org-1',
+      };
+      (req as { organizationId?: string }).organizationId = 'org-1';
+      next();
+    });
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -166,13 +190,22 @@ describe('StudentsController /students/export (http)', () => {
     expect(exportServiceMock.export).not.toHaveBeenCalled();
   });
 
+  it('ignores an organizationId query parameter (context comes from JWT)', async () => {
+    const res = await request(app.getHttpServer()).get(
+      '/students/export?organizationId=00000000-0000-4000-8000-000000000000',
+    );
+
+    expect(res.status).toBe(400);
+    expect(exportServiceMock.export).not.toHaveBeenCalled();
+  });
+
   it('passes valid filters to the export service', async () => {
     const res = await request(app.getHttpServer()).get(
       '/students/export?search=Nguyen&status=ACTIVE&branchId=11111111-2222-4333-8444-555555555555',
     );
 
     expect(res.status).toBe(200);
-    expect(exportServiceMock.export).toHaveBeenCalledWith(undefined, {
+    expect(exportServiceMock.export).toHaveBeenCalledWith('user-1', 'org-1', {
       search: 'Nguyen',
       status: 'ACTIVE',
       branchId: '11111111-2222-4333-8444-555555555555',
@@ -193,6 +226,10 @@ describe('StudentsController /students/export (http)', () => {
     expect(res.headers['content-disposition']).toBe(
       'attachment; filename="student-import-sample-vi.xlsx"',
     );
-    expect(templateServiceMock.download).toHaveBeenCalledWith(undefined, 'vi');
+    expect(templateServiceMock.download).toHaveBeenCalledWith(
+      'user-1',
+      'org-1',
+      'vi',
+    );
   });
 });

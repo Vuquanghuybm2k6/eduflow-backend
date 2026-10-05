@@ -22,8 +22,4 @@ export class CalendarQueryDto {
   @IsOptional()
   @IsUUID(undefined, { message: 'courseId phải là UUID hợp lệ' })
   courseId?: string;
-
-  @IsOptional()
-  @IsUUID(undefined, { message: 'organizationId phải là UUID hợp lệ' })
-  organizationId?: string;
 }

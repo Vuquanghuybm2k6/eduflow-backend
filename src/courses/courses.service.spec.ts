@@ -1,16 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import {
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { CoursesService } from './courses.service';
 import { Course, CourseStatus } from './entities/course.entity';
-import {
-  Membership,
-  MembershipStatus,
-} from '../memberships/entities/membership.entity';
 
 describe('CoursesService', () => {
   let service: CoursesService;
@@ -21,42 +13,10 @@ describe('CoursesService', () => {
     findOneBy: jest.Mock;
     remove: jest.Mock;
   };
-  let membershipsRepository: {
-    createQueryBuilder: jest.Mock;
-  };
-  let createQueryBuilder: {
-    innerJoinAndSelect: jest.Mock;
-    where: jest.Mock;
-    andWhere: jest.Mock;
-    orderBy: jest.Mock;
-    addOrderBy: jest.Mock;
-    limit: jest.Mock;
-    getOne: jest.Mock;
-  };
 
-  const userId = 'user-1';
   const organizationId = 'org-1';
-  const activeMembership = {
-    userId,
-    organizationId,
-    status: MembershipStatus.ACTIVE,
-  };
 
   beforeEach(async () => {
-    createQueryBuilder = {
-      innerJoinAndSelect: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      orderBy: jest.fn().mockReturnThis(),
-      addOrderBy: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      getOne: jest.fn().mockResolvedValue(activeMembership),
-    };
-
-    membershipsRepository = {
-      createQueryBuilder: jest.fn().mockReturnValue(createQueryBuilder),
-    };
-
     coursesRepository = {
       create: jest.fn((data: Record<string, unknown>) => data),
       save: jest.fn((entity: unknown) => entity),
@@ -72,10 +32,6 @@ describe('CoursesService', () => {
           provide: getRepositoryToken(Course),
           useValue: coursesRepository,
         },
-        {
-          provide: getRepositoryToken(Membership),
-          useValue: membershipsRepository,
-        },
       ],
     }).compile();
 
@@ -87,13 +43,16 @@ describe('CoursesService', () => {
   });
 
   describe('create', () => {
-    it('creates a course scoped to a resolved organization', async () => {
+    it('creates a course scoped to the JWT organization context', async () => {
       coursesRepository.findOneBy.mockResolvedValue(null);
 
-      await service.create(userId, {
-        name: 'Mathematics',
-        code: 'MATH-101',
-      });
+      await service.create(
+        {
+          name: 'Mathematics',
+          code: 'MATH-101',
+        },
+        organizationId,
+      );
 
       expect(coursesRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -110,24 +69,27 @@ describe('CoursesService', () => {
       coursesRepository.findOneBy.mockResolvedValue({ id: 'other-id' });
 
       await expect(
-        service.create(userId, { name: 'Math', code: 'MATH-101' }),
+        service.create({ name: 'Math', code: 'MATH-101' }, organizationId),
       ).rejects.toThrow(ConflictException);
     });
 
-    it('throws ForbiddenException when the user has no membership', async () => {
-      createQueryBuilder.getOne.mockResolvedValue(null);
+    it('only looks up duplicate codes within the organization', async () => {
+      coursesRepository.findOneBy.mockResolvedValue(null);
 
-      await expect(
-        service.create(userId, { name: 'Math', code: 'MATH-101' }),
-      ).rejects.toThrow(ForbiddenException);
+      await service.create({ name: 'Math', code: 'MATH-101' }, organizationId);
+
+      expect(coursesRepository.findOneBy).toHaveBeenCalledWith({
+        organizationId,
+        code: 'MATH-101',
+      });
     });
   });
 
   describe('findAll', () => {
-    it('queries courses for the resolved organization', async () => {
+    it('queries courses for the JWT organization context', async () => {
       coursesRepository.find.mockResolvedValue([{ id: 'course-1' }]);
 
-      const result = await service.findAll(userId);
+      const result = await service.findAll(organizationId);
 
       expect(coursesRepository.find).toHaveBeenCalledWith({
         where: { organizationId },
@@ -141,7 +103,7 @@ describe('CoursesService', () => {
     it('throws NotFoundException when the course does not exist', async () => {
       coursesRepository.findOneBy.mockResolvedValue(null);
 
-      await expect(service.findOne(userId, 'missing')).rejects.toThrow(
+      await expect(service.findOne('missing', organizationId)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -149,13 +111,26 @@ describe('CoursesService', () => {
     it('returns the course when found', async () => {
       coursesRepository.findOneBy.mockResolvedValue({ id: 'course-1' });
 
-      const result = await service.findOne(userId, 'course-1');
+      const result = await service.findOne('course-1', organizationId);
 
       expect(coursesRepository.findOneBy).toHaveBeenCalledWith({
         id: 'course-1',
         organizationId,
       });
       expect(result).toEqual({ id: 'course-1' });
+    });
+
+    it('does not return a course belonging to another organization', async () => {
+      coursesRepository.findOneBy.mockResolvedValue(null);
+
+      await expect(service.findOne('foreign-course', 'org-2')).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(coursesRepository.findOneBy).toHaveBeenCalledWith({
+        id: 'foreign-course',
+        organizationId: 'org-2',
+      });
     });
   });
 
@@ -166,8 +141,12 @@ describe('CoursesService', () => {
         name: 'Old',
       });
 
-      await service.update(userId, 'course-1', { name: 'New' });
+      await service.update('course-1', { name: 'New' }, organizationId);
 
+      expect(coursesRepository.findOneBy).toHaveBeenCalledWith({
+        id: 'course-1',
+        organizationId,
+      });
       expect(coursesRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'New' }),
       );
@@ -177,7 +156,7 @@ describe('CoursesService', () => {
       coursesRepository.findOneBy.mockResolvedValue(null);
 
       await expect(
-        service.update(userId, 'missing', { name: 'New' }),
+        service.update('missing', { name: 'New' }, organizationId),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -186,8 +165,12 @@ describe('CoursesService', () => {
     it('removes an existing course', async () => {
       coursesRepository.findOneBy.mockResolvedValue({ id: 'course-1' });
 
-      const result = await service.remove(userId, 'course-1');
+      const result = await service.remove('course-1', organizationId);
 
+      expect(coursesRepository.findOneBy).toHaveBeenCalledWith({
+        id: 'course-1',
+        organizationId,
+      });
       expect(coursesRepository.remove).toHaveBeenCalledWith({
         id: 'course-1',
       });
@@ -197,7 +180,7 @@ describe('CoursesService', () => {
     it('throws NotFoundException when the course does not exist', async () => {
       coursesRepository.findOneBy.mockResolvedValue(null);
 
-      await expect(service.remove(userId, 'missing')).rejects.toThrow(
+      await expect(service.remove('missing', organizationId)).rejects.toThrow(
         NotFoundException,
       );
     });

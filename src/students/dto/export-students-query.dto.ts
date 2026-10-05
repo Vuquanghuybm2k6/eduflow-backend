@@ -5,10 +5,6 @@ import { StudentStatus } from '../entities/student.entity';
 
 export class ExportStudentsQueryDto {
   @IsOptional()
-  @IsUUID()
-  organizationId?: string;
-
-  @IsOptional()
   @IsString()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,

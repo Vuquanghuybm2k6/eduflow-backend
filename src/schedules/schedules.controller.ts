@@ -15,6 +15,7 @@ import { CreateSessionsDto } from './dto/create-sessions.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { CalendarQueryDto } from './dto/calendar-query.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 
 @Controller()
 export class SchedulesController {
@@ -23,65 +24,61 @@ export class SchedulesController {
   @Get('schedules/calendar')
   calendar(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Query() query: CalendarQueryDto,
   ) {
-    return this.schedulesService.getCalendar(userId, query);
+    return this.schedulesService.getCalendar(userId, query, organizationId);
   }
 
   @Post('classes/:classId/schedules/bulk')
   createBulk(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('classId', ParseUUIDPipe) classId: string,
     @Body() createSessionsDto: CreateSessionsDto,
-    @Query('organizationId') organizationId?: string,
   ) {
     return this.schedulesService.createBulk(
-      userId,
       classId,
       createSessionsDto,
-      { organizationId },
+      organizationId,
     );
   }
 
   @Post('classes/:classId/schedules')
   create(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('classId', ParseUUIDPipe) classId: string,
     @Body() createScheduleDto: CreateScheduleDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.schedulesService.create(userId, classId, createScheduleDto, {
+    return this.schedulesService.create(
+      classId,
+      createScheduleDto,
       organizationId,
-    });
+    );
   }
 
   @Get('classes/:classId/schedules')
   findAll(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('classId', ParseUUIDPipe) classId: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.schedulesService.findAll(userId, classId, { organizationId });
+    return this.schedulesService.findAll(classId, organizationId);
   }
 
   @Patch('schedules/:id')
   update(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateScheduleDto: UpdateScheduleDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.schedulesService.update(userId, id, updateScheduleDto, {
-      organizationId,
-    });
+    return this.schedulesService.update(id, updateScheduleDto, organizationId);
   }
 
   @Delete('schedules/:id')
   remove(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.schedulesService.remove(userId, id, { organizationId });
+    return this.schedulesService.remove(userId, id, organizationId);
   }
 }

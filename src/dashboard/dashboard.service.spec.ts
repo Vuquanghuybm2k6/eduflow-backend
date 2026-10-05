@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { DashboardService } from './dashboard.service';
@@ -7,7 +6,6 @@ import { Student } from '../students/entities/student.entity';
 import { Teacher } from '../teachers/entities/teacher.entity';
 import { Class } from '../classes/entities/class.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
-import { Membership } from '../memberships/entities/membership.entity';
 import { Enrollment } from '../enrollments/entities/enrollment.entity';
 import { ClassSession } from '../sessions/entities/class-session.entity';
 
@@ -60,14 +58,12 @@ describe('DashboardService', () => {
   let teachersRepo: Record<string, jest.Mock>;
   let classesRepo: Record<string, jest.Mock>;
   let attendancesRepo: Record<string, jest.Mock>;
-  let membershipsRepo: Record<string, jest.Mock>;
 
   beforeEach(async () => {
     studentsRepo = { createQueryBuilder: jest.fn() };
     teachersRepo = { createQueryBuilder: jest.fn() };
     classesRepo = { createQueryBuilder: jest.fn() };
     attendancesRepo = { createQueryBuilder: jest.fn() };
-    membershipsRepo = { createQueryBuilder: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -76,7 +72,6 @@ describe('DashboardService', () => {
         { provide: getRepositoryToken(Teacher), useValue: teachersRepo },
         { provide: getRepositoryToken(Class), useValue: classesRepo },
         { provide: getRepositoryToken(Attendance), useValue: attendancesRepo },
-        { provide: getRepositoryToken(Membership), useValue: membershipsRepo },
         { provide: getRepositoryToken(Enrollment), useValue: {} },
         { provide: getRepositoryToken(ClassSession), useValue: {} },
       ],
@@ -84,12 +79,6 @@ describe('DashboardService', () => {
 
     service = module.get(DashboardService);
   });
-
-  function mockMembership() {
-    membershipsRepo.createQueryBuilder.mockReturnValue(
-      makeQb('getOne', { organizationId: 'org-1' }),
-    );
-  }
 
   function mockData(
     opts: {
@@ -136,8 +125,13 @@ describe('DashboardService', () => {
     );
   }
 
+  function qbWhereCalls(repo: Record<string, jest.Mock>) {
+    return repo.createQueryBuilder.mock.results.map(
+      (result) => result.value.where as jest.Mock,
+    );
+  }
+
   it('aggregates normal data across the organization', async () => {
-    mockMembership();
     mockData({
       students: { total: '100', active: '92' },
       teachers: { total: '12', active: '10' },
@@ -152,7 +146,7 @@ describe('DashboardService', () => {
       },
     });
 
-    const result = await service.getStatistics('user-1');
+    const result = await service.getStatistics('org-1');
 
     expect(result.students).toEqual({ total: 100, active: 92 });
     expect(result.teachers).toEqual({ total: 12, active: 10 });
@@ -173,8 +167,37 @@ describe('DashboardService', () => {
     });
   });
 
+  it('scopes every aggregate query to the given organization', async () => {
+    mockData();
+
+    await service.getStatistics('org-1');
+
+    const scopedWhere = expect.objectContaining({
+      organizationId: 'org-1',
+    });
+
+    expect(qbWhereCalls(studentsRepo)[0]).toHaveBeenCalledWith(
+      expect.stringContaining('organizationId'),
+      scopedWhere,
+    );
+    expect(qbWhereCalls(teachersRepo)[0]).toHaveBeenCalledWith(
+      expect.stringContaining('organizationId'),
+      scopedWhere,
+    );
+    expect(qbWhereCalls(classesRepo)).toHaveLength(2);
+    qbWhereCalls(classesRepo).forEach((where) => {
+      expect(where).toHaveBeenCalledWith(
+        expect.stringContaining('organizationId'),
+        scopedWhere,
+      );
+    });
+    expect(qbWhereCalls(attendancesRepo)[0]).toHaveBeenCalledWith(
+      expect.stringContaining('organizationId'),
+      scopedWhere,
+    );
+  });
+
   it('uses a global weighted rate instead of averaging class rates', async () => {
-    mockMembership();
     mockData({
       students: { total: '10', active: '10' },
       teachers: { total: '2', active: '2' },
@@ -190,13 +213,12 @@ describe('DashboardService', () => {
       },
     });
 
-    const result = await service.getStatistics('user-1');
+    const result = await service.getStatistics('org-1');
 
     expect(result.attendance.attendanceRate).toBe(75);
   });
 
   it('returns null rate and zeroed counters when an organization has no attendance', async () => {
-    mockMembership();
     mockData({
       students: { total: '10', active: '8' },
       teachers: { total: '3', active: '3' },
@@ -211,7 +233,7 @@ describe('DashboardService', () => {
       },
     });
 
-    const result = await service.getStatistics('user-1');
+    const result = await service.getStatistics('org-1');
 
     expect(result.attendance.total).toBe(0);
     expect(result.attendance.attendanceRate).toBeNull();
@@ -219,10 +241,9 @@ describe('DashboardService', () => {
   });
 
   it('does not crash when the organization has no students/teachers/classes', async () => {
-    mockMembership();
     mockData();
 
-    const result = await service.getStatistics('user-1');
+    const result = await service.getStatistics('org-1');
 
     expect(result.students).toEqual({ total: 0, active: 0 });
     expect(result.teachers).toEqual({ total: 0, active: 0 });
@@ -236,16 +257,7 @@ describe('DashboardService', () => {
     expect(result.attendance.attendanceRate).toBeNull();
   });
 
-  it('forbids access when the membership cannot be resolved', async () => {
-    membershipsRepo.createQueryBuilder.mockReturnValue(makeQb('getOne', null));
-
-    await expect(service.getStatistics('user-1')).rejects.toThrow(
-      ForbiddenException,
-    );
-  });
-
   it('rounds attendance rate to 2 decimals', async () => {
-    mockMembership();
     mockData({
       students: { total: '1', active: '1' },
       teachers: { total: '1', active: '1' },
@@ -260,7 +272,7 @@ describe('DashboardService', () => {
       },
     });
 
-    const result = await service.getStatistics('user-1');
+    const result = await service.getStatistics('org-1');
 
     expect(result.attendance.attendanceRate).toBe(87.5);
   });

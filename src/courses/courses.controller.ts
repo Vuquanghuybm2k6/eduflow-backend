@@ -6,12 +6,11 @@ import {
   Param,
   Patch,
   Post,
-  Query,
 } from '@nestjs/common';
 import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 
 @Controller('courses')
 export class CoursesController {
@@ -19,50 +18,39 @@ export class CoursesController {
 
   @Post()
   create(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Body() createCourseDto: CreateCourseDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.coursesService.create(userId, createCourseDto, {
-      organizationId,
-    });
+    return this.coursesService.create(createCourseDto, organizationId);
   }
 
   @Get()
-  findAll(
-    @CurrentUser('userId') userId: string,
-    @Query('organizationId') organizationId?: string,
-  ) {
-    return this.coursesService.findAll(userId, { organizationId });
+  findAll(@CurrentOrganization() organizationId: string) {
+    return this.coursesService.findAll(organizationId);
   }
 
   @Get(':id')
   findOne(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.coursesService.findOne(userId, id, { organizationId });
+    return this.coursesService.findOne(id, organizationId);
   }
 
   @Patch(':id')
   update(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
     @Body() updateCourseDto: UpdateCourseDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.coursesService.update(userId, id, updateCourseDto, {
-      organizationId,
-    });
+    return this.coursesService.update(id, updateCourseDto, organizationId);
   }
 
   @Delete(':id')
   remove(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.coursesService.remove(userId, id, { organizationId });
+    return this.coursesService.remove(id, organizationId);
   }
 }

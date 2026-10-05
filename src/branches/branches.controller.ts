@@ -6,12 +6,12 @@ import {
   Param,
   Patch,
   Post,
-  Query,
 } from '@nestjs/common';
 import { BranchesService } from './branches.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 
 @Controller('branches')
 export class BranchesController {
@@ -20,49 +20,45 @@ export class BranchesController {
   @Post()
   create(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Body() createBranchDto: CreateBranchDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.branchesService.create(userId, createBranchDto, {
-      organizationId,
-    });
+    return this.branchesService.create(createBranchDto, organizationId);
   }
 
   @Get()
   findAll(
     @CurrentUser('userId') userId: string,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
-    return this.branchesService.findAll(userId, { organizationId });
+    return this.branchesService.findAll(organizationId);
   }
 
   @Get(':id')
   findOne(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.branchesService.findOne(userId, id, { organizationId });
+    return this.branchesService.findOne(id, organizationId);
   }
 
   @Patch(':id')
   update(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
     @Body() updateBranchDto: UpdateBranchDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.branchesService.update(userId, id, updateBranchDto, {
-      organizationId,
-    });
+    return this.branchesService.update(id, updateBranchDto, organizationId);
   }
 
   @Delete(':id')
   remove(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.branchesService.remove(userId, id, { organizationId });
+    return this.branchesService.remove(id, organizationId);
   }
 }

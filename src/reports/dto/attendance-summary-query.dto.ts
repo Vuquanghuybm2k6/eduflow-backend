@@ -11,10 +11,6 @@ import {
 export class AttendanceSummaryQueryDto {
   @IsOptional()
   @IsUUID()
-  organizationId?: string;
-
-  @IsOptional()
-  @IsUUID()
   classId?: string;
 
   @IsOptional()

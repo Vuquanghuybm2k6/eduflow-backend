@@ -22,10 +22,6 @@ import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
 import { Attendance } from '../attendance/entities/attendance.entity';
 
-export interface OrgContextOptions {
-  organizationId?: string;
-}
-
 const DAY_OF_WEEK_TO_JS_DAY: Record<DayOfWeek, number> = {
   MONDAY: 1,
   TUESDAY: 2,
@@ -60,39 +56,6 @@ export class ClassSessionsService {
     @InjectRepository(Attendance)
     private readonly attendancesRepository: Repository<Attendance>,
   ) {}
-
-  private async resolveOrganizationId(
-    userId: string,
-    requestedOrganizationId?: string,
-  ): Promise<string> {
-    const qb = this.membershipsRepository
-      .createQueryBuilder('membership')
-      .innerJoinAndSelect('membership.organization', 'organization')
-      .where('membership.userId = :userId', { userId })
-      .andWhere('membership.status = :status', {
-        status: MembershipStatus.ACTIVE,
-      });
-
-    if (requestedOrganizationId) {
-      qb.andWhere('membership.organizationId = :organizationId', {
-        organizationId: requestedOrganizationId,
-      });
-    }
-
-    qb.orderBy('membership.joinedAt', 'ASC')
-      .addOrderBy('membership.createdAt', 'ASC')
-      .limit(1);
-
-    const membership = await qb.getOne();
-
-    if (!membership) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    return membership.organizationId;
-  }
 
   private async assertIsAdminOrOwner(
     userId: string,
@@ -215,16 +178,12 @@ export class ClassSessionsService {
   }
 
   async generate(
-    userId: string,
+    actorUserId: string,
     classId: string,
     dto: GenerateSessionsDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<GenerateResult> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-    await this.assertIsAdminOrOwner(userId, organizationId);
+    await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
     const classEntity = await this.assertClassEditable(organizationId, classId);
 
@@ -382,16 +341,10 @@ export class ClassSessionsService {
   }
 
   async findAll(
-    userId: string,
     classId: string,
     query: SessionQueryDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     await this.assertClassEditable(organizationId, classId);
 
     const qb = this.classSessionsRepository
@@ -448,17 +401,7 @@ export class ClassSessionsService {
     }));
   }
 
-  async findOne(
-    userId: string,
-    classId: string,
-    sessionId: string,
-    options: OrgContextOptions = {},
-  ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findOne(classId: string, sessionId: string, organizationId: string) {
     const session = await this.classSessionsRepository.findOne({
       where: {
         id: sessionId,

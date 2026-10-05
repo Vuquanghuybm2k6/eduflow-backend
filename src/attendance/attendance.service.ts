@@ -20,10 +20,6 @@ import {
 } from '../enrollments/entities/enrollment.entity';
 import { Teacher, TeacherStatus } from '../teachers/entities/teacher.entity';
 
-export interface OrgContextOptions {
-  organizationId?: string;
-}
-
 export type AttendanceRoleKind = 'manager' | 'teacher' | 'student' | 'member';
 
 export interface AttendanceUpdateSummary {
@@ -50,39 +46,6 @@ export class AttendanceService {
     @InjectRepository(Teacher)
     private readonly teachersRepository: Repository<Teacher>,
   ) {}
-
-  private async resolveOrganizationId(
-    userId: string,
-    requestedOrganizationId?: string,
-  ): Promise<string> {
-    const qb = this.membershipsRepository
-      .createQueryBuilder('membership')
-      .innerJoinAndSelect('membership.organization', 'organization')
-      .where('membership.userId = :userId', { userId })
-      .andWhere('membership.status = :status', {
-        status: MembershipStatus.ACTIVE,
-      });
-
-    if (requestedOrganizationId) {
-      qb.andWhere('membership.organizationId = :organizationId', {
-        organizationId: requestedOrganizationId,
-      });
-    }
-
-    qb.orderBy('membership.joinedAt', 'ASC')
-      .addOrderBy('membership.createdAt', 'ASC')
-      .limit(1);
-
-    const membership = await qb.getOne();
-
-    if (!membership) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    return membership.organizationId;
-  }
 
   private async resolveRoleKind(
     userId: string,
@@ -239,14 +202,9 @@ export class AttendanceService {
 
   async getSessionAttendance(
     userId: string,
+    organizationId: string,
     sessionId: string,
-    options: OrgContextOptions = {},
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const session = await this.findSessionInOrganization(
       sessionId,
       organizationId,
@@ -323,17 +281,13 @@ export class AttendanceService {
     userId: string,
     sessionId: string,
     dto: UpdateAttendanceDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<AttendanceUpdateSummary> {
     console.log(
       '[Attendance PUT] incoming userId=%s, sessionId=%s, org=%s',
       userId,
       sessionId,
-      options.organizationId,
-    );
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
+      organizationId,
     );
 
     const session = await this.findSessionInOrganization(

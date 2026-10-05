@@ -1,16 +1,13 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('statistics')
-  getStatistics(
-    @CurrentUser('userId') userId: string,
-    @Query('organizationId') organizationId?: string,
-  ) {
-    return this.dashboardService.getStatistics(userId, { organizationId });
+  getStatistics(@CurrentOrganization() organizationId: string) {
+    return this.dashboardService.getStatistics(organizationId);
   }
 }

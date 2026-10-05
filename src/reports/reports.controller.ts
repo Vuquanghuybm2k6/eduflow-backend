@@ -1,6 +1,7 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 import { AttendanceSummaryQueryDto } from './dto/attendance-summary-query.dto';
 import { ClassCardsQueryDto } from './dto/class-cards-query.dto';
 
@@ -11,11 +12,12 @@ export class ReportsController {
   @Get('classes/cards')
   getClassAttendanceCards(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Query() query: ClassCardsQueryDto,
   ) {
     return this.reportsService.getClassAttendanceCards(
       userId,
-      { organizationId: query.organizationId },
+      organizationId,
       {
         search: query.search,
         branchId: query.branchId,
@@ -30,21 +32,19 @@ export class ReportsController {
   getClassAttendanceSummary(
     @CurrentUser('userId') userId: string,
     @Param('classId', ParseUUIDPipe) classId: string,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
-    return this.reportsService.getClassAttendanceSummary(userId, classId, {
-      organizationId,
-    });
+    return this.reportsService.getClassAttendanceSummary(userId, classId, organizationId);
   }
 
   @Get('classes/:classId/students')
   getClassStudentsAttendance(
     @CurrentUser('userId') userId: string,
     @Param('classId', ParseUUIDPipe) classId: string,
+    @CurrentOrganization() organizationId: string,
     @Query() query: AttendanceSummaryQueryDto,
   ) {
-    return this.reportsService.getClassStudentsAttendance(userId, classId, {
-      organizationId: query.organizationId,
+    return this.reportsService.getClassStudentsAttendance(userId, classId, organizationId, {
       startDate: query.startDate,
       endDate: query.endDate,
     });
@@ -54,6 +54,7 @@ export class ReportsController {
   getStudentAttendanceSummary(
     @CurrentUser('userId') userId: string,
     @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentOrganization() organizationId: string,
     @Query() query: AttendanceSummaryQueryDto,
   ) {
     if (query.classId) {
@@ -61,23 +62,21 @@ export class ReportsController {
         userId,
         studentId,
         query.classId,
-        { organizationId: query.organizationId },
+        organizationId,
       );
     }
 
-    return this.reportsService.getStudentAttendanceSummary(userId, studentId, {
-      organizationId: query.organizationId,
-    });
+    return this.reportsService.getStudentAttendanceSummary(userId, studentId, organizationId);
   }
 
   @Get('students/:studentId/attendance-history')
   getStudentAttendanceHistory(
     @CurrentUser('userId') userId: string,
     @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentOrganization() organizationId: string,
     @Query() query: AttendanceSummaryQueryDto,
   ) {
-    return this.reportsService.getStudentAttendanceHistory(userId, studentId, {
-      organizationId: query.organizationId,
+    return this.reportsService.getStudentAttendanceHistory(userId, studentId, organizationId, {
       classId: query.classId,
       page: query.page,
       limit: query.limit,

@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,8 +10,6 @@ import { Repository } from 'typeorm';
 import { Enrollment, EnrollmentStatus } from './entities/enrollment.entity';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentStatusDto } from './dto/update-enrollment-status.dto';
-import { Membership } from '../memberships/entities/membership.entity';
-import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { Student, StudentStatus } from '../students/entities/student.entity';
 import {
   Class,
@@ -33,55 +30,16 @@ const ALLOWED_ENROLLMENT_TRANSITIONS: Record<
   [EnrollmentStatus.CANCELLED]: [],
 };
 
-export interface OrgContextOptions {
-  organizationId?: string;
-}
-
 @Injectable()
 export class EnrollmentsService {
   constructor(
     @InjectRepository(Enrollment)
     private readonly enrollmentsRepository: Repository<Enrollment>,
-    @InjectRepository(Membership)
-    private readonly membershipsRepository: Repository<Membership>,
     @InjectRepository(Student)
     private readonly studentsRepository: Repository<Student>,
     @InjectRepository(Class)
     private readonly classesRepository: Repository<Class>,
   ) {}
-
-  private async resolveOrganizationId(
-    userId: string,
-    requestedOrganizationId?: string,
-  ): Promise<string> {
-    const qb = this.membershipsRepository
-      .createQueryBuilder('membership')
-      .innerJoinAndSelect('membership.organization', 'organization')
-      .where('membership.userId = :userId', { userId })
-      .andWhere('membership.status = :status', {
-        status: MembershipStatus.ACTIVE,
-      });
-
-    if (requestedOrganizationId) {
-      qb.andWhere('membership.organizationId = :organizationId', {
-        organizationId: requestedOrganizationId,
-      });
-    }
-
-    qb.orderBy('membership.joinedAt', 'ASC')
-      .addOrderBy('membership.createdAt', 'ASC')
-      .limit(1);
-
-    const membership = await qb.getOne();
-
-    if (!membership) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    return membership.organizationId;
-  }
 
   private async assertStudentInOrganization(
     organizationId: string,
@@ -132,15 +90,9 @@ export class EnrollmentsService {
   }
 
   async create(
-    userId: string,
     createEnrollmentDto: CreateEnrollmentDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     await this.assertStudentInOrganization(
       organizationId,
       createEnrollmentDto.studentId,
@@ -183,12 +135,7 @@ export class EnrollmentsService {
     });
   }
 
-  async findAll(userId: string, options: OrgContextOptions = {}) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findAll(organizationId: string) {
     return this.enrollmentsRepository
       .createQueryBuilder('enrollment')
       .leftJoinAndSelect('enrollment.student', 'student')
@@ -199,12 +146,7 @@ export class EnrollmentsService {
       .getMany();
   }
 
-  async findOne(userId: string, id: string, options: OrgContextOptions = {}) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findOne(id: string, organizationId: string) {
     const enrollment = await this.enrollmentsRepository
       .createQueryBuilder('enrollment')
       .leftJoinAndSelect('enrollment.student', 'student')
@@ -223,16 +165,7 @@ export class EnrollmentsService {
     return enrollment;
   }
 
-  async findByStudent(
-    userId: string,
-    studentId: string,
-    options: OrgContextOptions = {},
-  ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findByStudent(studentId: string, organizationId: string) {
     return this.enrollmentsRepository
       .createQueryBuilder('enrollment')
       .leftJoinAndSelect('enrollment.student', 'student')
@@ -246,16 +179,7 @@ export class EnrollmentsService {
       .getMany();
   }
 
-  async findByClass(
-    userId: string,
-    classId: string,
-    options: OrgContextOptions = {},
-  ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findByClass(classId: string, organizationId: string) {
     return this.enrollmentsRepository
       .createQueryBuilder('enrollment')
       .leftJoinAndSelect('enrollment.student', 'student')
@@ -270,12 +194,11 @@ export class EnrollmentsService {
   }
 
   async updateStatus(
-    userId: string,
     id: string,
     updateEnrollmentStatusDto: UpdateEnrollmentStatusDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const enrollment = await this.findOne(userId, id, options);
+    const enrollment = await this.findOne(id, organizationId);
 
     const allowedTransitions =
       ALLOWED_ENROLLMENT_TRANSITIONS[enrollment.status] ?? [];
@@ -301,8 +224,8 @@ export class EnrollmentsService {
    * the enrollment (status = CANCELLED). A COMPLETED enrollment cannot be
    * cancelled because that would rewrite history.
    */
-  async remove(userId: string, id: string, options: OrgContextOptions = {}) {
-    const enrollment = await this.findOne(userId, id, options);
+  async remove(id: string, organizationId: string) {
+    const enrollment = await this.findOne(id, organizationId);
 
     if (enrollment.status === EnrollmentStatus.COMPLETED) {
       throw new ConflictException(

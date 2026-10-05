@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import {
@@ -23,16 +24,6 @@ import { DayOfWeek, Schedule } from '../schedules/entities/schedule.entity';
 
 describe('ClassesService', () => {
   let service: ClassesService;
-
-  const membershipQueryBuilder = {
-    innerJoinAndSelect: jest.fn().mockReturnThis(),
-    where: jest.fn().mockReturnThis(),
-    andWhere: jest.fn().mockReturnThis(),
-    orderBy: jest.fn().mockReturnThis(),
-    addOrderBy: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    getOne: jest.fn().mockResolvedValue({ organizationId: 'org-1' }),
-  };
 
   const classQueryBuilder = {
     innerJoinAndSelect: jest.fn().mockReturnThis(),
@@ -64,7 +55,6 @@ describe('ClassesService', () => {
   const membershipsRepo = {
     findOne: jest.fn(),
     findOneBy: jest.fn(),
-    createQueryBuilder: jest.fn(() => membershipQueryBuilder),
   };
 
   const branchesRepo = {
@@ -137,7 +127,7 @@ describe('ClassesService', () => {
       capacity: 30,
       status: ClassStatus.ACTIVE,
       lifecycleStatus: ClassLifecycleStatus.UPCOMING,
-    } as Class;
+    } as unknown as Class;
 
     beforeEach(() => {
       classesRepo.findOneBy.mockResolvedValue(existingClass);
@@ -162,7 +152,7 @@ describe('ClassesService', () => {
       enrollmentsRepo.countBy.mockResolvedValue(35);
 
       await expect(
-        service.update('user-1', 'c-1', { capacity: 20 }),
+        service.update('c-1', { capacity: 20 }, 'org-1'),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(classesRepo.save).not.toHaveBeenCalled();
     });
@@ -170,7 +160,7 @@ describe('ClassesService', () => {
     it('allows reducing capacity when active enrollments fit', async () => {
       enrollmentsRepo.countBy.mockResolvedValue(10);
 
-      const result = await service.update('user-1', 'c-1', { capacity: 20 });
+      const result = await service.update('c-1', { capacity: 20 }, 'org-1');
 
       expect(classesRepo.save).toHaveBeenCalled();
       expect(result.capacity).toBe(20);
@@ -198,7 +188,7 @@ describe('ClassesService', () => {
       ]);
 
       await expect(
-        service.update('user-1', 'c-1', { teacherId: 'teacher-2' }),
+        service.update('c-1', { teacherId: 'teacher-2' }, 'org-1'),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(classesRepo.save).not.toHaveBeenCalled();
     });
@@ -211,7 +201,7 @@ describe('ClassesService', () => {
       });
 
       await expect(
-        service.update('user-1', 'c-1', { name: 'Lớp Toán 10C' }),
+        service.update('c-1', { name: 'Lớp Toán 10C' }, 'org-1'),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(classesRepo.save).not.toHaveBeenCalled();
     });
@@ -220,9 +210,11 @@ describe('ClassesService', () => {
       enrollmentsRepo.countBy.mockResolvedValue(5);
       scheduleQueryBuilder.getMany.mockResolvedValue([]);
 
-      const result = await service.update('user-1', 'c-1', {
-        teacherId: 'teacher-2',
-      });
+      const result = await service.update(
+        'c-1',
+        { teacherId: 'teacher-2' },
+        'org-1',
+      );
 
       expect(classesRepo.save).toHaveBeenCalled();
       expect(result.teacherId).toBe('teacher-2');
@@ -253,18 +245,18 @@ describe('ClassesService', () => {
         role: { name: 'Staff' },
       });
 
-      await expect(service.remove('user-1', 'c-1')).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(
+        service.remove('user-1', 'c-1', 'org-1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
       expect(classesRepo.save).not.toHaveBeenCalled();
     });
 
     it('throws ConflictException when the class still has active enrollments', async () => {
       enrollmentsRepo.countBy.mockResolvedValue(3);
 
-      await expect(service.remove('user-1', 'c-1')).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(
+        service.remove('user-1', 'c-1', 'org-1'),
+      ).rejects.toBeInstanceOf(ConflictException);
       expect(classesRepo.save).not.toHaveBeenCalled();
     });
 
@@ -272,9 +264,9 @@ describe('ClassesService', () => {
       enrollmentsRepo.countBy.mockResolvedValue(0);
       schedulesRepo.countBy.mockResolvedValue(2);
 
-      await expect(service.remove('user-1', 'c-1')).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(
+        service.remove('user-1', 'c-1', 'org-1'),
+      ).rejects.toBeInstanceOf(ConflictException);
       expect(classesRepo.save).not.toHaveBeenCalled();
     });
 
@@ -282,7 +274,7 @@ describe('ClassesService', () => {
       enrollmentsRepo.countBy.mockResolvedValue(0);
       schedulesRepo.countBy.mockResolvedValue(0);
 
-      const result = await service.remove('user-1', 'c-1');
+      const result = await service.remove('user-1', 'c-1', 'org-1');
 
       expect(classesRepo.save).toHaveBeenCalledWith({
         id: 'c-1',
@@ -335,8 +327,121 @@ describe('ClassesService', () => {
       });
 
       await expect(
-        service.update('user-1', 'c-1', { capacity: 10 }),
+        service.update('c-1', { capacity: 10 }, 'org-1'),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('organization isolation', () => {
+    it('findAll only queries classes of the current organization', async () => {
+      classesRepo.find.mockResolvedValue([]);
+
+      await service.findAll({}, 'org-1');
+
+      expect(classesRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ organizationId: 'org-1' }),
+        }),
+      );
+    });
+
+    it('findAll merges filters into the organization scoped query', async () => {
+      classesRepo.find.mockResolvedValue([]);
+
+      await service.findAll({ status: ClassStatus.ACTIVE }, 'org-1');
+
+      expect(classesRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            organizationId: 'org-1',
+            status: ClassStatus.ACTIVE,
+          }),
+        }),
+      );
+    });
+
+    it('findOne scopes the lookup to the current organization', async () => {
+      classesRepo.findOneBy.mockResolvedValue(null);
+
+      await expect(service.findOne('c-1', 'org-1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(classesRepo.findOneBy).toHaveBeenCalledWith({
+        id: 'c-1',
+        organizationId: 'org-1',
+      });
+    });
+
+    it('update scopes the lookup to the current organization', async () => {
+      classesRepo.findOneBy.mockResolvedValue(null);
+
+      await expect(
+        service.update('c-1', { name: 'Lớp Mới' }, 'org-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(classesRepo.findOneBy).toHaveBeenCalledWith({
+        id: 'c-1',
+        organizationId: 'org-1',
+      });
+    });
+
+    it('create stores the class under the current organization', async () => {
+      classesRepo.findOneBy.mockResolvedValue(null);
+      branchesRepo.findOne.mockResolvedValue({
+        id: 'branch-1',
+        organizationId: 'org-1',
+        status: BranchStatus.ACTIVE,
+      });
+      coursesRepo.findOne.mockResolvedValue({
+        id: 'course-1',
+        organizationId: 'org-1',
+        status: CourseStatus.ACTIVE,
+      });
+
+      const result = await service.create(
+        {
+          branchId: 'branch-1',
+          courseId: 'course-1',
+          name: 'Lớp Mới',
+          code: 'MOI-1',
+          startDate: '2026-09-01',
+          endDate: '2026-12-31',
+          capacity: 25,
+        },
+        'org-1',
+      );
+
+      expect(classesRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 'org-1' }),
+      );
+      expect(result.organizationId).toBe('org-1');
+    });
+
+    it('remove checks admin/owner membership in the current organization', async () => {
+      classesRepo.findOneBy.mockResolvedValue({
+        id: 'c-1',
+        organizationId: 'org-1',
+        status: ClassStatus.ACTIVE,
+        lifecycleStatus: ClassLifecycleStatus.UPCOMING,
+      });
+      membershipsRepo.findOne.mockResolvedValue({
+        id: 'm-1',
+        organizationId: 'org-1',
+        role: { name: 'Owner' },
+      });
+      enrollmentsRepo.countBy.mockResolvedValue(0);
+      schedulesRepo.countBy.mockResolvedValue(0);
+
+      await service.remove('user-1', 'c-1', 'org-1');
+
+      expect(membershipsRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ organizationId: 'org-1' }),
+        }),
+      );
+      expect(classesRepo.findOneBy).toHaveBeenCalledWith({
+        id: 'c-1',
+        organizationId: 'org-1',
+      });
     });
   });
 });

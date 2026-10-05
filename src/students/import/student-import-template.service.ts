@@ -49,10 +49,9 @@ export class StudentImportTemplateService {
 
   async download(
     actorUserId: string,
+    organizationId: string,
     language: ImportTemplateLanguage = DEFAULT_IMPORT_TEMPLATE_LANGUAGE,
   ): Promise<StudentImportTemplateResult> {
-    const organizationId =
-      await this.studentsService.resolveOrganizationId(actorUserId);
     await this.studentsService.assertIsAdminOrOwner(
       actorUserId,
       organizationId,

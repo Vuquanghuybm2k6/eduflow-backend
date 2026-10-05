@@ -11,10 +11,6 @@ import {
 
 export class ClassCardsQueryDto {
   @IsOptional()
-  @IsUUID()
-  organizationId?: string;
-
-  @IsOptional()
   @IsString()
   @MaxLength(120)
   search?: string;

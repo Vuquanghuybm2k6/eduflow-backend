@@ -70,7 +70,6 @@ function buildQueryBuilder(getManyResult: Student[]) {
 describe('StudentExportService', () => {
   let service: StudentExportService;
   let studentsService: {
-    resolveOrganizationId: jest.Mock;
     assertIsAdminOrOwner: jest.Mock;
   };
   let excelService: {
@@ -83,7 +82,6 @@ describe('StudentExportService', () => {
 
   beforeEach(async () => {
     studentsService = {
-      resolveOrganizationId: jest.fn().mockResolvedValue(organizationId),
       assertIsAdminOrOwner: jest.fn().mockResolvedValue(undefined),
     };
     excelService = {
@@ -112,13 +110,9 @@ describe('StudentExportService', () => {
   });
 
   describe('authorization', () => {
-    it('resolves the organization context for the actor', async () => {
-      await service.export(actorUserId, { organizationId });
+    it('checks the manager permission for the CURRENT organization', async () => {
+      await service.export(actorUserId, organizationId, {});
 
-      expect(studentsService.resolveOrganizationId).toHaveBeenCalledWith(
-        actorUserId,
-        organizationId,
-      );
       expect(studentsService.assertIsAdminOrOwner).toHaveBeenCalledWith(
         actorUserId,
         organizationId,
@@ -126,7 +120,7 @@ describe('StudentExportService', () => {
     });
 
     it('allows an owner to export', async () => {
-      const result = await service.export(actorUserId, {});
+      const result = await service.export(actorUserId, organizationId, {});
 
       expect(result.buffer.equals(Buffer.from('workbook-bytes'))).toBe(true);
       expect(result.filename).toMatch(/^students-\d{4}-\d{2}-\d{2}\.xlsx$/);
@@ -135,7 +129,7 @@ describe('StudentExportService', () => {
     it('allows an admin to export', async () => {
       studentsService.assertIsAdminOrOwner.mockResolvedValue(undefined);
 
-      await expect(service.export(actorUserId, {})).resolves.toBeDefined();
+      await expect(service.export(actorUserId, organizationId, {})).resolves.toBeDefined();
     });
 
     it('rejects a non-manager user', async () => {
@@ -145,19 +139,7 @@ describe('StudentExportService', () => {
         ),
       );
 
-      await expect(service.export(actorUserId, {})).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
-
-    it('rejects a user with no membership in the organization', async () => {
-      studentsService.resolveOrganizationId.mockRejectedValue(
-        new ForbiddenException(
-          'User does not have access to this organization',
-        ),
-      );
-
-      await expect(service.export(actorUserId, {})).rejects.toThrow(
+      await expect(service.export(actorUserId, organizationId, {})).rejects.toThrow(
         ForbiddenException,
       );
     });
@@ -165,7 +147,7 @@ describe('StudentExportService', () => {
 
   describe('filters', () => {
     it('scopes the query by the current organization', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       expect(queryBuilder.where).toHaveBeenCalledWith(
         'student.organizationId = :organizationId',
@@ -174,14 +156,14 @@ describe('StudentExportService', () => {
     });
 
     it('exports all students when no filters are provided', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       expect(queryBuilder.andWhere).not.toHaveBeenCalled();
       expect(queryBuilder.getMany).toHaveBeenCalledTimes(1);
     });
 
     it('applies a trimmed search filter', async () => {
-      await service.export(actorUserId, { search: 'Nguyen' });
+      await service.export(actorUserId, organizationId, { search: 'Nguyen' });
 
       const calls = queryBuilder.andWhere.mock.calls as unknown[][];
       const searchCall = calls.find((call) =>
@@ -192,7 +174,7 @@ describe('StudentExportService', () => {
     });
 
     it('treats an empty search as no search', async () => {
-      await service.export(actorUserId, { search: '' });
+      await service.export(actorUserId, organizationId, { search: '' });
 
       const calls = queryBuilder.andWhere.mock.calls as unknown[][];
       const searchCall = calls.find((call) =>
@@ -202,7 +184,7 @@ describe('StudentExportService', () => {
     });
 
     it('applies a status filter', async () => {
-      await service.export(actorUserId, { status: 'INACTIVE' as const });
+      await service.export(actorUserId, organizationId, { status: 'INACTIVE' as const });
 
       expect(queryBuilder.andWhere).toHaveBeenCalledWith(
         'student.status = :status',
@@ -211,7 +193,7 @@ describe('StudentExportService', () => {
     });
 
     it('applies a gender filter', async () => {
-      await service.export(actorUserId, { gender: 'FEMALE' as const });
+      await service.export(actorUserId, organizationId, { gender: 'FEMALE' as const });
 
       expect(queryBuilder.andWhere).toHaveBeenCalledWith(
         'user.gender = :gender',
@@ -225,7 +207,7 @@ describe('StudentExportService', () => {
         organizationId,
       });
 
-      await service.export(actorUserId, { branchId });
+      await service.export(actorUserId, organizationId, { branchId });
 
       expect(branchesRepository.findOneBy).toHaveBeenCalledWith({
         id: branchId,
@@ -243,7 +225,7 @@ describe('StudentExportService', () => {
         organizationId,
       });
 
-      await service.export(actorUserId, {
+      await service.export(actorUserId, organizationId, {
         search: 'Nguyen',
         status: 'ACTIVE' as const,
         gender: 'MALE' as const,
@@ -258,14 +240,14 @@ describe('StudentExportService', () => {
     });
 
     it('does not apply pagination to the export query', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       expect(queryBuilder.limit).not.toHaveBeenCalled();
       expect(queryBuilder.skip).not.toHaveBeenCalled();
     });
 
     it('does not load enrollments or other large relations', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const selectColumns = (
         queryBuilder.select.mock.calls as unknown[][]
@@ -278,7 +260,7 @@ describe('StudentExportService', () => {
     it('rejects a branch that belongs to another organization', async () => {
       branchesRepository.findOneBy.mockResolvedValue(null);
 
-      await expect(service.export(actorUserId, { branchId })).rejects.toThrow(
+      await expect(service.export(actorUserId, organizationId, { branchId })).rejects.toThrow(
         NotFoundException,
       );
       expect(queryBuilder.getMany).not.toHaveBeenCalled();
@@ -293,7 +275,7 @@ describe('StudentExportService', () => {
     }
 
     it('returns a valid workbook with headers and rows', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       expect(excelService.exportWorksheet).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -309,7 +291,7 @@ describe('StudentExportService', () => {
     });
 
     it('maps a student to human-readable columns', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       expect(options.rows).toEqual([
@@ -335,7 +317,7 @@ describe('StudentExportService', () => {
         }),
       ]);
 
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       expect(options.rows[0][3]).toBe('15/03/2020');
@@ -351,7 +333,7 @@ describe('StudentExportService', () => {
         }),
       ]);
 
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       expect(options.rows[0][4]).toBe('Nữ');
@@ -371,7 +353,7 @@ describe('StudentExportService', () => {
         }),
       ]);
 
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       const serialized = JSON.stringify(options.rows);
@@ -383,12 +365,12 @@ describe('StudentExportService', () => {
     it('returns a valid workbook with only headers when no students match', async () => {
       queryBuilder.getMany.mockResolvedValue([]);
 
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       expect(options.headers).toEqual([...STUDENT_EXPORT_HEADERS]);
       expect(options.rows).toEqual([]);
-      const result = await service.export(actorUserId, {});
+      const result = await service.export(actorUserId, organizationId, {});
       expect(Buffer.isBuffer(result.buffer)).toBe(true);
     });
 
@@ -402,21 +384,25 @@ describe('StudentExportService', () => {
         }),
       ]);
 
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       expect(options.rows[0][5]).toBe('Hà Nội, Đà Nẵng');
     });
   });
 
-  describe('helper functions (dto becomes validated elsewhere)', () => {
-    it('exports a query object without organization id', async () => {
+  describe('organization context', () => {
+    it('scopes by the organization passed by the caller, not the query', async () => {
       const query: ExportStudentsQueryDto = {};
-      await service.export(actorUserId, query);
+      await service.export(actorUserId, organizationId, query);
 
-      expect(studentsService.resolveOrganizationId).toHaveBeenCalledWith(
+      expect(queryBuilder.where).toHaveBeenCalledWith(
+        'student.organizationId = :organizationId',
+        { organizationId },
+      );
+      expect(studentsService.assertIsAdminOrOwner).toHaveBeenCalledWith(
         actorUserId,
-        undefined,
+        organizationId,
       );
     });
   });

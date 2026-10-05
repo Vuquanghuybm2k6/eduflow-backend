@@ -26,10 +26,6 @@ import { DayOfWeek, Schedule } from '../schedules/entities/schedule.entity';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 
-export interface OrgContextOptions {
-  organizationId?: string;
-}
-
 export interface FindClassesFilters {
   status?: ClassStatus;
   lifecycleStatus?: ClassLifecycleStatus;
@@ -66,39 +62,6 @@ export class ClassesService {
     @InjectRepository(Schedule)
     private readonly schedulesRepository: Repository<Schedule>,
   ) {}
-
-  private async resolveOrganizationId(
-    userId: string,
-    requestedOrganizationId?: string,
-  ): Promise<string> {
-    const qb = this.membershipsRepository
-      .createQueryBuilder('membership')
-      .innerJoinAndSelect('membership.organization', 'organization')
-      .where('membership.userId = :userId', { userId })
-      .andWhere('membership.status = :status', {
-        status: MembershipStatus.ACTIVE,
-      });
-
-    if (requestedOrganizationId) {
-      qb.andWhere('membership.organizationId = :organizationId', {
-        organizationId: requestedOrganizationId,
-      });
-    }
-
-    qb.orderBy('membership.joinedAt', 'ASC')
-      .addOrderBy('membership.createdAt', 'ASC')
-      .limit(1);
-
-    const membership = await qb.getOne();
-
-    if (!membership) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    return membership.organizationId;
-  }
 
   private async assertIsAdminOrOwner(userId: string, organizationId: string) {
     const membership = await this.membershipsRepository.findOne({
@@ -314,16 +277,7 @@ export class ClassesService {
     }
   }
 
-  async create(
-    userId: string,
-    createClassDto: CreateClassDto,
-    options: OrgContextOptions = {},
-  ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async create(createClassDto: CreateClassDto, organizationId: string) {
     this.validateDates(createClassDto.startDate, createClassDto.endDate);
     await this.assertCodeAvailable(organizationId, createClassDto.code);
     await this.assertReferencesInOrganization(
@@ -346,16 +300,7 @@ export class ClassesService {
     return this.applyComputedLifecycleStatus(saved);
   }
 
-  async findAll(
-    userId: string,
-    options: OrgContextOptions = {},
-    filters: FindClassesFilters = {},
-  ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findAll(filters: FindClassesFilters = {}, organizationId: string) {
     const classes = await this.classesRepository.find({
       where: {
         organizationId,
@@ -378,12 +323,7 @@ export class ClassesService {
       : withComputedLifecycle;
   }
 
-  async findOne(userId: string, id: string, options: OrgContextOptions = {}) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findOne(id: string, organizationId: string) {
     const classEntity = await this.classesRepository.findOneBy({
       id,
       organizationId,
@@ -397,16 +337,10 @@ export class ClassesService {
   }
 
   async update(
-    userId: string,
     id: string,
     updateClassDto: UpdateClassDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const classEntity = await this.classesRepository.findOneBy({
       id,
       organizationId,
@@ -467,12 +401,8 @@ export class ClassesService {
    * grades). Deleting just deactivates the record (status = INACTIVE) and
    * marks the lifecycle as CANCELLED.
    */
-  async remove(userId: string, id: string, options: OrgContextOptions = {}) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-    await this.assertIsAdminOrOwner(userId, organizationId);
+  async remove(actorUserId: string, id: string, organizationId: string) {
+    await this.assertIsAdminOrOwner(actorUserId, organizationId);
 
     const classEntity = await this.classesRepository.findOneBy({
       id,
@@ -510,12 +440,7 @@ export class ClassesService {
     return this.classesRepository.save(classEntity);
   }
 
-  async duplicate(userId: string, id: string, options: OrgContextOptions = {}) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async duplicate(id: string, organizationId: string) {
     const original = await this.classesRepository.findOneBy({
       id,
       organizationId,

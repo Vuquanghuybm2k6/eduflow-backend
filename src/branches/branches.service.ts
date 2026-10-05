@@ -1,6 +1,5 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,59 +7,18 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Branch, BranchStatus } from './entities/branch.entity';
-import { Membership } from '../memberships/entities/membership.entity';
-import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { Class, ClassLifecycleStatus } from '../classes/entities/class.entity';
-
-export interface OrgContextOptions {
-  organizationId?: string;
-}
 
 @Injectable()
 export class BranchesService {
   constructor(
     @InjectRepository(Branch)
     private readonly branchesRepository: Repository<Branch>,
-    @InjectRepository(Membership)
-    private readonly membershipsRepository: Repository<Membership>,
     @InjectRepository(Class)
     private readonly classesRepository: Repository<Class>,
   ) {}
-
-  private async resolveOrganizationId(
-    userId: string,
-    requestedOrganizationId?: string,
-  ): Promise<string> {
-    const qb = this.membershipsRepository
-      .createQueryBuilder('membership')
-      .innerJoinAndSelect('membership.organization', 'organization')
-      .where('membership.userId = :userId', { userId })
-      .andWhere('membership.status = :status', {
-        status: MembershipStatus.ACTIVE,
-      });
-
-    if (requestedOrganizationId) {
-      qb.andWhere('membership.organizationId = :organizationId', {
-        organizationId: requestedOrganizationId,
-      });
-    }
-
-    qb.orderBy('membership.joinedAt', 'ASC')
-      .addOrderBy('membership.createdAt', 'ASC')
-      .limit(1);
-
-    const membership = await qb.getOne();
-
-    if (!membership) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    return membership.organizationId;
-  }
 
   private async assertBranchCodeAvailable(
     organizationId: string,
@@ -77,16 +35,7 @@ export class BranchesService {
     }
   }
 
-  async create(
-    userId: string,
-    createBranchDto: CreateBranchDto,
-    options: OrgContextOptions = {},
-  ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async create(createBranchDto: CreateBranchDto, organizationId: string) {
     await this.assertBranchCodeAvailable(organizationId, createBranchDto.code);
 
     const branch = this.branchesRepository.create({
@@ -97,24 +46,14 @@ export class BranchesService {
     return this.branchesRepository.save(branch);
   }
 
-  async findAll(userId: string, options: OrgContextOptions = {}) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findAll(organizationId: string) {
     return this.branchesRepository.find({
       where: { organizationId },
       order: { createdAt: 'DESC' },
     });
   }
 
-  async findOne(userId: string, id: string, options: OrgContextOptions = {}) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async findOne(id: string, organizationId: string) {
     const branch = await this.branchesRepository.findOneBy({
       id,
       organizationId,
@@ -128,16 +67,10 @@ export class BranchesService {
   }
 
   async update(
-    userId: string,
     id: string,
     updateBranchDto: UpdateBranchDto,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const branch = await this.branchesRepository.findOneBy({
       id,
       organizationId,
@@ -163,12 +96,7 @@ export class BranchesService {
     return this.branchesRepository.save(branch);
   }
 
-  async remove(userId: string, id: string, options: OrgContextOptions = {}) {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
+  async remove(id: string, organizationId: string) {
     const branch = await this.branchesRepository.findOneBy({
       id,
       organizationId,

@@ -17,25 +17,6 @@ import {
 import { Class } from '../classes/entities/class.entity';
 import { Branch, BranchStatus } from '../branches/entities/branch.entity';
 
-function mockQueryBuilder(getOneResult?: unknown) {
-  const qb: Record<string, jest.Mock> = {
-    innerJoinAndSelect: jest.fn(),
-    where: jest.fn(),
-    andWhere: jest.fn(),
-    orderBy: jest.fn(),
-    addOrderBy: jest.fn(),
-    limit: jest.fn(),
-    getOne: jest.fn(),
-  };
-  Object.values(qb).forEach((fn) => {
-    if (fn !== qb.getOne) {
-      fn.mockReturnValue(qb);
-    }
-  });
-  qb.getOne.mockResolvedValue(getOneResult ?? { organizationId: 'org-1' });
-  return qb;
-}
-
 describe('TeachersService', () => {
   let service: TeachersService;
   let dataSource: { transaction: jest.Mock };
@@ -117,9 +98,6 @@ describe('TeachersService', () => {
     };
 
     it('creates a User, TEACHER Membership and Teacher inside a transaction', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       teachersRepo.findOneBy.mockResolvedValue(null);
       usersRepo.findOneBy.mockResolvedValue(null);
@@ -132,7 +110,7 @@ describe('TeachersService', () => {
         async (cb: (m: never) => Promise<unknown>) => cb(manager),
       );
 
-      const result = await service.create('actor-1', dto);
+      const result = await service.create('actor-1', dto, 'org-1');
 
       expect(dataSource.transaction).toHaveBeenCalled();
       const createdUser = manager.create.mock.calls.find(
@@ -163,9 +141,6 @@ describe('TeachersService', () => {
     });
 
     it('throws NotFoundException when a branch does not belong to the organization', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       teachersRepo.findOneBy.mockResolvedValue(null);
       usersRepo.findOneBy.mockResolvedValue(null);
@@ -176,30 +151,24 @@ describe('TeachersService', () => {
         async (cb: (m: never) => Promise<unknown>) => cb(manager),
       );
 
-      await expect(service.create('actor-1', dto)).rejects.toThrow(
+      await expect(service.create('actor-1', dto, 'org-1')).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('throws ConflictException when the teacher code is already used in the organization', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       teachersRepo.findOneBy.mockResolvedValue({
         id: 't-1',
         teacherCode: 'GV001',
       });
 
-      await expect(service.create('actor-1', dto)).rejects.toThrow(
+      await expect(service.create('actor-1', dto, 'org-1')).rejects.toThrow(
         ConflictException,
       );
     });
 
     it('throws ConflictException when the email already exists', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       teachersRepo.findOneBy.mockResolvedValue(null);
       usersRepo.findOneBy.mockResolvedValue({
@@ -207,31 +176,25 @@ describe('TeachersService', () => {
         email: 'nguyena@gmail.com',
       });
 
-      await expect(service.create('actor-1', dto)).rejects.toThrow(
+      await expect(service.create('actor-1', dto, 'org-1')).rejects.toThrow(
         ConflictException,
       );
     });
 
     it('throws ForbiddenException when the actor is not owner/admin', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue({
         ...adminMembership,
         role: { name: 'Teacher' },
       });
 
-      await expect(service.create('actor-1', dto)).rejects.toThrow(
+      await expect(service.create('actor-1', dto, 'org-1')).rejects.toThrow(
         ForbiddenException,
       );
     });
 
     it('throws ForbiddenException when the user has no active membership in the organization', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder(null),
-      );
 
-      await expect(service.create('actor-1', dto)).rejects.toThrow(
+      await expect(service.create('actor-1', dto, 'org-1')).rejects.toThrow(
         ForbiddenException,
       );
     });
@@ -239,15 +202,12 @@ describe('TeachersService', () => {
 
   describe('findAll', () => {
     it('returns only teachers of the resolved organization for an admin', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       teachersRepo.find.mockResolvedValue([
         { id: 't-1', organizationId: 'org-1', teacherCode: 'GV001' },
       ]);
 
-      const result = await service.findAll('actor-1');
+      const result = await service.findAll('actor-1', 'org-1');
 
       expect(teachersRepo.find).toHaveBeenCalledWith(
         expect.objectContaining({ where: { organizationId: 'org-1' } }),
@@ -256,15 +216,12 @@ describe('TeachersService', () => {
     });
 
     it('throws ForbiddenException when called by a teacher', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue({
         ...adminMembership,
         role: { name: 'Teacher' },
       });
 
-      await expect(service.findAll('actor-1')).rejects.toThrow(
+      await expect(service.findAll('actor-1', 'org-1')).rejects.toThrow(
         ForbiddenException,
       );
     });
@@ -272,9 +229,6 @@ describe('TeachersService', () => {
 
   describe('findOne', () => {
     it('returns the teacher for an admin', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       teachersRepo.findOne.mockResolvedValue({
         id: 't-1',
@@ -282,7 +236,7 @@ describe('TeachersService', () => {
         teacherCode: 'GV001',
       });
 
-      const result = await service.findOne('actor-1', 't-1');
+      const result = await service.findOne('actor-1', 't-1', 'org-1');
 
       expect(teachersRepo.findOne).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -293,13 +247,10 @@ describe('TeachersService', () => {
     });
 
     it('throws NotFoundException when the teacher does not exist', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       teachersRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne('actor-1', 'missing')).rejects.toThrow(
+      await expect(service.findOne('actor-1', 'missing', 'org-1')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -307,16 +258,13 @@ describe('TeachersService', () => {
 
   describe('findMe', () => {
     it('returns the teacher profile owned by the current user', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       teachersRepo.findOne.mockResolvedValue({
         id: 't-1',
         userId: 'user-1',
         organizationId: 'org-1',
       });
 
-      const result = await service.findMe('user-1');
+      const result = await service.findMe('user-1', 'org-1');
 
       expect(teachersRepo.findOne).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -327,20 +275,14 @@ describe('TeachersService', () => {
     });
 
     it('throws NotFoundException when the user is not a teacher', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       teachersRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.findMe('user-x')).rejects.toThrow(NotFoundException);
+      await expect(service.findMe('user-x', 'org-1')).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('update', () => {
     it('updates the teacher business fields', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       const teacher = {
         id: 't-1',
@@ -351,9 +293,12 @@ describe('TeachersService', () => {
       };
       teachersRepo.findOne.mockResolvedValue(teacher);
 
-      const result = await service.update('actor-1', 't-1', {
-        specialization: 'Backend Development',
-      });
+      const result = await service.update(
+        'actor-1',
+        't-1',
+        { specialization: 'Backend Development' },
+        'org-1',
+      );
 
       expect(teacher.specialization).toBe('Backend Development');
       expect(teachersRepo.save).toHaveBeenCalled();
@@ -361,9 +306,6 @@ describe('TeachersService', () => {
     });
 
     it('throws ConflictException when changing to an existing teacherCode', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       teachersRepo.findOne.mockResolvedValue({
         id: 't-1',
@@ -376,16 +318,13 @@ describe('TeachersService', () => {
       });
 
       await expect(
-        service.update('actor-1', 't-1', { teacherCode: 'GV002' }),
+        service.update('actor-1', 't-1', { teacherCode: 'GV002' }, 'org-1'),
       ).rejects.toThrow(ConflictException);
     });
   });
 
   describe('updateStatus', () => {
     it('sets a legal status on the teacher', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       const teacher = {
         id: 't-1',
@@ -395,9 +334,12 @@ describe('TeachersService', () => {
       teachersRepo.findOne.mockResolvedValue(teacher);
       classesRepo.find.mockResolvedValue([]);
 
-      const result = await service.updateStatus('actor-1', 't-1', {
-        status: TeacherStatus.INACTIVE,
-      });
+      const result = await service.updateStatus(
+        'actor-1',
+        't-1',
+        { status: TeacherStatus.INACTIVE },
+        'org-1',
+      );
 
       expect(teacher.status).toBe(TeacherStatus.INACTIVE);
       expect(teachersRepo.save).toHaveBeenCalled();
@@ -405,9 +347,6 @@ describe('TeachersService', () => {
     });
 
     it('throws ConflictException when INACTIVATING a teacher assigned to active classes', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       const teacher = {
         id: 't-1',
@@ -426,17 +365,17 @@ describe('TeachersService', () => {
       ]);
 
       await expect(
-        service.updateStatus('actor-1', 't-1', {
-          status: TeacherStatus.INACTIVE,
-        }),
+        service.updateStatus(
+          'actor-1',
+          't-1',
+          { status: TeacherStatus.INACTIVE },
+          'org-1',
+        ),
       ).rejects.toThrow(ConflictException);
       expect(teachersRepo.save).not.toHaveBeenCalled();
     });
 
     it('allows INACTIVATING a teacher whose classes have all ended', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        mockQueryBuilder({ organizationId: 'org-1' }),
-      );
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       const teacher = {
         id: 't-1',
@@ -454,9 +393,12 @@ describe('TeachersService', () => {
         },
       ]);
 
-      const result = await service.updateStatus('actor-1', 't-1', {
-        status: TeacherStatus.INACTIVE,
-      });
+      const result = await service.updateStatus(
+        'actor-1',
+        't-1',
+        { status: TeacherStatus.INACTIVE },
+        'org-1',
+      );
 
       expect(teacher.status).toBe(TeacherStatus.INACTIVE);
       expect(result).toBe(teacher);

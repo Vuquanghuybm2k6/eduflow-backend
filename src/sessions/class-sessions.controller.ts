@@ -11,6 +11,7 @@ import { ClassSessionsService } from './class-sessions.service';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 
 @Controller()
 export class ClassSessionsController {
@@ -19,36 +20,37 @@ export class ClassSessionsController {
   @Post('classes/:classId/sessions/generate')
   generate(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('classId', ParseUUIDPipe) classId: string,
     @Body() dto: GenerateSessionsDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.classSessionsService.generate(userId, classId, dto, {
+    return this.classSessionsService.generate(
+      userId,
+      classId,
+      dto,
       organizationId,
-    });
+    );
   }
 
   @Get('classes/:classId/sessions')
   findAll(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('classId', ParseUUIDPipe) classId: string,
     @Query() query: SessionQueryDto,
   ) {
-    const { organizationId, ...filters } = query;
-    return this.classSessionsService.findAll(userId, classId, filters, {
-      organizationId,
-    });
+    return this.classSessionsService.findAll(classId, query, organizationId);
   }
 
   @Get('classes/:classId/sessions/:sessionId')
   findOne(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('classId', ParseUUIDPipe) classId: string,
     @Param('sessionId', ParseUUIDPipe) sessionId: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.classSessionsService.findOne(userId, classId, sessionId, {
+    return this.classSessionsService.findOne(
+      classId,
+      sessionId,
       organizationId,
-    });
+    );
   }
 }

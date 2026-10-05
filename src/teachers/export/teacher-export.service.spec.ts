@@ -72,7 +72,6 @@ function buildQueryBuilder(getManyResult: Teacher[]) {
 describe('TeacherExportService', () => {
   let service: TeacherExportService;
   let teachersService: {
-    resolveOrganizationId: jest.Mock;
     assertIsAdminOrOwner: jest.Mock;
   };
   let excelService: {
@@ -85,7 +84,6 @@ describe('TeacherExportService', () => {
 
   beforeEach(async () => {
     teachersService = {
-      resolveOrganizationId: jest.fn().mockResolvedValue(organizationId),
       assertIsAdminOrOwner: jest.fn().mockResolvedValue(undefined),
     };
     excelService = {
@@ -114,13 +112,9 @@ describe('TeacherExportService', () => {
   });
 
   describe('authorization', () => {
-    it('resolves the organization context for the actor', async () => {
-      await service.export(actorUserId, { organizationId });
+    it('passes the JWT organization context to the authorization check', async () => {
+      await service.export(actorUserId, organizationId, {});
 
-      expect(teachersService.resolveOrganizationId).toHaveBeenCalledWith(
-        actorUserId,
-        organizationId,
-      );
       expect(teachersService.assertIsAdminOrOwner).toHaveBeenCalledWith(
         actorUserId,
         organizationId,
@@ -128,7 +122,7 @@ describe('TeacherExportService', () => {
     });
 
     it('allows an owner to export', async () => {
-      const result = await service.export(actorUserId, {});
+      const result = await service.export(actorUserId, organizationId, {});
 
       expect(result.buffer.equals(Buffer.from('workbook-bytes'))).toBe(true);
       expect(result.filename).toMatch(/^teachers-\d{4}-\d{2}-\d{2}\.xlsx$/);
@@ -137,7 +131,9 @@ describe('TeacherExportService', () => {
     it('allows an admin to export', async () => {
       teachersService.assertIsAdminOrOwner.mockResolvedValue(undefined);
 
-      await expect(service.export(actorUserId, {})).resolves.toBeDefined();
+      await expect(
+        service.export(actorUserId, organizationId, {}),
+      ).resolves.toBeDefined();
     });
 
     it('rejects a non-manager user', async () => {
@@ -147,27 +143,15 @@ describe('TeacherExportService', () => {
         ),
       );
 
-      await expect(service.export(actorUserId, {})).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
-
-    it('rejects a user with no membership in the organization', async () => {
-      teachersService.resolveOrganizationId.mockRejectedValue(
-        new ForbiddenException(
-          'User does not have access to this organization',
-        ),
-      );
-
-      await expect(service.export(actorUserId, {})).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.export(actorUserId, organizationId, {}),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('filters', () => {
     it('scopes the query by the current organization', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       expect(queryBuilder.where).toHaveBeenCalledWith(
         'teacher.organizationId = :organizationId',
@@ -176,14 +160,14 @@ describe('TeacherExportService', () => {
     });
 
     it('exports all teachers when no filters are provided', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       expect(queryBuilder.andWhere).not.toHaveBeenCalled();
       expect(queryBuilder.getMany).toHaveBeenCalledTimes(1);
     });
 
     it('applies a trimmed search filter', async () => {
-      await service.export(actorUserId, { search: 'Nguyen' });
+      await service.export(actorUserId, organizationId, { search: 'Nguyen' });
 
       const calls = queryBuilder.andWhere.mock.calls as unknown[][];
       const searchCall = calls.find((call) =>
@@ -194,7 +178,7 @@ describe('TeacherExportService', () => {
     });
 
     it('treats an empty search as no search', async () => {
-      await service.export(actorUserId, { search: '' });
+      await service.export(actorUserId, organizationId, { search: '' });
 
       const calls = queryBuilder.andWhere.mock.calls as unknown[][];
       const searchCall = calls.find((call) =>
@@ -204,7 +188,7 @@ describe('TeacherExportService', () => {
     });
 
     it('applies a status filter', async () => {
-      await service.export(actorUserId, { status: 'INACTIVE' as const });
+      await service.export(actorUserId, organizationId, { status: 'INACTIVE' as const });
 
       expect(queryBuilder.andWhere).toHaveBeenCalledWith(
         'teacher.status = :status',
@@ -213,7 +197,7 @@ describe('TeacherExportService', () => {
     });
 
     it('applies a specialization filter', async () => {
-      await service.export(actorUserId, { specialization: 'Toán học' });
+      await service.export(actorUserId, organizationId, { specialization: 'Toán học' });
 
       expect(queryBuilder.andWhere).toHaveBeenCalledWith(
         'teacher.specialization = :specialization',
@@ -227,7 +211,7 @@ describe('TeacherExportService', () => {
         organizationId,
       });
 
-      await service.export(actorUserId, { branchId });
+      await service.export(actorUserId, organizationId, { branchId });
 
       expect(branchesRepository.findOneBy).toHaveBeenCalledWith({
         id: branchId,
@@ -247,7 +231,7 @@ describe('TeacherExportService', () => {
         organizationId,
       });
 
-      await service.export(actorUserId, {
+      await service.export(actorUserId, organizationId, {
         search: 'Nguyen',
         status: 'ACTIVE' as const,
         specialization: 'Toán học',
@@ -262,14 +246,14 @@ describe('TeacherExportService', () => {
     });
 
     it('does not apply pagination to the export query', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       expect(queryBuilder.limit).not.toHaveBeenCalled();
       expect(queryBuilder.skip).not.toHaveBeenCalled();
     });
 
     it('does not load classes or other large relations', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const selectColumns = (
         queryBuilder.select.mock.calls as unknown[][]
@@ -282,7 +266,7 @@ describe('TeacherExportService', () => {
     it('rejects a branch that belongs to another organization', async () => {
       branchesRepository.findOneBy.mockResolvedValue(null);
 
-      await expect(service.export(actorUserId, { branchId })).rejects.toThrow(
+      await expect(service.export(actorUserId, organizationId, { branchId })).rejects.toThrow(
         NotFoundException,
       );
       expect(queryBuilder.getMany).not.toHaveBeenCalled();
@@ -297,7 +281,7 @@ describe('TeacherExportService', () => {
     }
 
     it('returns a valid workbook with headers and rows', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       expect(excelService.exportWorksheet).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -313,7 +297,7 @@ describe('TeacherExportService', () => {
     });
 
     it('maps a teacher to human-readable columns', async () => {
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       expect(options.rows).toEqual([
@@ -341,7 +325,7 @@ describe('TeacherExportService', () => {
         }),
       ]);
 
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       expect(options.rows[0][6]).toBe('15/03/2020');
@@ -353,7 +337,7 @@ describe('TeacherExportService', () => {
         buildTeacher({ status: 'INACTIVE', branches: [] }),
       ]);
 
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       expect(options.rows[0][9]).toBe('Ngừng hoạt động');
@@ -364,7 +348,7 @@ describe('TeacherExportService', () => {
         buildTeacher({ gender: 'FEMALE' }),
       ]);
 
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       expect(options.rows[0][7]).toBe('Nữ');
@@ -383,7 +367,7 @@ describe('TeacherExportService', () => {
         }),
       ]);
 
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       const serialized = JSON.stringify(options.rows);
@@ -395,12 +379,12 @@ describe('TeacherExportService', () => {
     it('returns a valid workbook with only headers when no teachers match', async () => {
       queryBuilder.getMany.mockResolvedValue([]);
 
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       expect(options.headers).toEqual([...TEACHER_EXPORT_HEADERS]);
       expect(options.rows).toEqual([]);
-      const result = await service.export(actorUserId, {});
+      const result = await service.export(actorUserId, organizationId, {});
       expect(Buffer.isBuffer(result.buffer)).toBe(true);
     });
 
@@ -414,7 +398,7 @@ describe('TeacherExportService', () => {
         }),
       ]);
 
-      await service.export(actorUserId, {});
+      await service.export(actorUserId, organizationId, {});
 
       const options = exportOptions();
       expect(options.rows[0][8]).toBe('Hà Nội, Đà Nẵng');
@@ -424,11 +408,11 @@ describe('TeacherExportService', () => {
   describe('helper functions (dto becomes validated elsewhere)', () => {
     it('exports a query object without organization id', async () => {
       const query: ExportTeachersQueryDto = {};
-      await service.export(actorUserId, query);
+      await service.export(actorUserId, organizationId, query);
 
-      expect(teachersService.resolveOrganizationId).toHaveBeenCalledWith(
+      expect(teachersService.assertIsAdminOrOwner).toHaveBeenCalledWith(
         actorUserId,
-        undefined,
+        organizationId,
       );
     });
   });

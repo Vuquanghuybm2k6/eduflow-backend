@@ -3,13 +3,13 @@ import {
   Controller,
   Get,
   Post,
-  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 import { ImportsService } from './imports.service';
 import { ImportJobResult, ImportPreview } from './types/import.types';
 import { ConfirmImportDto } from './dto/confirm-import.dto';
@@ -38,23 +38,27 @@ export class ImportsController {
   )
   previewStudentImport(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @UploadedFile() file: Express.Multer.File,
-    @Query('organizationId') organizationId?: string,
   ): Promise<ImportPreview> {
-    return this.importsService.previewStudentImport(file, userId, {
+    return this.importsService.previewStudentImport(
+      file,
+      userId,
       organizationId,
-    });
+    );
   }
 
   @Post('students/confirm')
   confirmStudentImport(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Body() dto: ConfirmImportDto,
-    @Query('organizationId') organizationId?: string,
   ): Promise<ImportJobResult> {
-    return this.importsService.confirmStudentImport(dto.importJobId, userId, {
+    return this.importsService.confirmStudentImport(
+      dto.importJobId,
+      userId,
       organizationId,
-    });
+    );
   }
 
   @Get('teachers/meta')
@@ -70,22 +74,26 @@ export class ImportsController {
   )
   previewTeacherImport(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @UploadedFile() file: Express.Multer.File,
-    @Query('organizationId') organizationId?: string,
   ): Promise<TeacherImportPreview> {
-    return this.importsService.previewTeacherImport(file, userId, {
+    return this.importsService.previewTeacherImport(
+      file,
+      userId,
       organizationId,
-    });
+    );
   }
 
   @Post('teachers/confirm')
   confirmTeacherImport(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Body() dto: ConfirmImportDto,
-    @Query('organizationId') organizationId?: string,
   ): Promise<ImportJobResult> {
-    return this.importsService.confirmTeacherImport(dto.importJobId, userId, {
+    return this.importsService.confirmTeacherImport(
+      dto.importJobId,
+      userId,
       organizationId,
-    });
+    );
   }
 }

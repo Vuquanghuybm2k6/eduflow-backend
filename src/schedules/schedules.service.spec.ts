@@ -87,7 +87,6 @@ describe('SchedulesService', () => {
         {
           provide: getRepositoryToken(Membership),
           useValue: {
-            createQueryBuilder: jest.fn(),
             findOne: jest.fn(),
           },
         },
@@ -140,17 +139,6 @@ describe('SchedulesService', () => {
       role: { name: 'Owner' },
     } as any);
 
-    // Default: resolveOrganizationId succeeds via the membership repo.
-    membershipRepo.createQueryBuilder.mockReturnValue({
-      innerJoinAndSelect: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      orderBy: jest.fn().mockReturnThis(),
-      addOrderBy: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      getOne: jest.fn().mockResolvedValue({ organizationId }),
-    } as any);
-
     // Default: no teacher conflict (empty list of other-class schedules).
     scheduleRepo.createQueryBuilder.mockReturnValue(
       buildScheduleQueryBuilderMock() as any,
@@ -177,9 +165,22 @@ describe('SchedulesService', () => {
 
     it.todo('books a schedule when there is no conflict');
 
+    it('scopes the class lookup to the current organization', async () => {
+      await service.create(classId, baseDto, organizationId);
+
+      expect(classRepo.findOneBy).toHaveBeenCalledWith({
+        id: classId,
+        organizationId,
+      });
+    });
+
     it('rejects when endTime is not greater than startTime', async () => {
       await expect(
-        service.create(userId, classId, { ...baseDto, endTime: '18:00' }),
+        service.create(
+          classId,
+          { ...baseDto, endTime: '18:00' },
+          organizationId,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -195,7 +196,7 @@ describe('SchedulesService', () => {
       ]);
 
       await expect(
-        service.create(userId, classId, baseDto),
+        service.create(classId, baseDto, organizationId),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -211,11 +212,15 @@ describe('SchedulesService', () => {
       ]);
 
       await expect(
-        service.create(userId, classId, {
-          dayOfWeek: DayOfWeek.MONDAY,
-          startTime: '19:00',
-          endTime: '21:00',
-        }),
+        service.create(
+          classId,
+          {
+            dayOfWeek: DayOfWeek.MONDAY,
+            startTime: '19:00',
+            endTime: '21:00',
+          },
+          organizationId,
+        ),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -231,18 +236,22 @@ describe('SchedulesService', () => {
       ]);
 
       await expect(
-        service.create(userId, classId, {
-          dayOfWeek: DayOfWeek.MONDAY,
-          startTime: '20:00',
-          endTime: '22:00',
-        }),
+        service.create(
+          classId,
+          {
+            dayOfWeek: DayOfWeek.MONDAY,
+            startTime: '20:00',
+            endTime: '22:00',
+          },
+          organizationId,
+        ),
       ).resolves.toBeDefined();
     });
 
     it('rejects when the class does not exist', async () => {
       classRepo.findOneBy.mockResolvedValue(null);
       await expect(
-        service.create(userId, classId, baseDto),
+        service.create(classId, baseDto, organizationId),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -253,7 +262,7 @@ describe('SchedulesService', () => {
       });
 
       await expect(
-        service.create(userId, classId, baseDto),
+        service.create(classId, baseDto, organizationId),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -264,7 +273,7 @@ describe('SchedulesService', () => {
       });
 
       await expect(
-        service.create(userId, classId, baseDto),
+        service.create(classId, baseDto, organizationId),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -284,11 +293,15 @@ describe('SchedulesService', () => {
       scheduleRepo.createQueryBuilder.mockReturnValue(qb as any);
 
       await expect(
-        service.create(userId, classId, {
-          dayOfWeek: DayOfWeek.MONDAY,
-          startTime: '18:00',
-          endTime: '20:00',
-        }),
+        service.create(
+          classId,
+          {
+            dayOfWeek: DayOfWeek.MONDAY,
+            startTime: '18:00',
+            endTime: '20:00',
+          },
+          organizationId,
+        ),
       ).rejects.toBeInstanceOf(ConflictException);
     });
   });
@@ -324,46 +337,62 @@ describe('SchedulesService', () => {
     });
 
     it('creates multiple sessions atomically when there is no conflict', async () => {
-      const result = await service.createBulk(userId, classId, sessions());
+      const result = await service.createBulk(
+        classId,
+        sessions(),
+        organizationId,
+      );
       expect(result).toHaveLength(2);
       expect(dataSource.transaction).toHaveBeenCalled();
     });
 
     it('rejects when any session has an invalid time range', async () => {
       await expect(
-        service.createBulk(userId, classId, {
-          sessions: [
-            {
-              dayOfWeek: DayOfWeek.MONDAY,
-              startTime: '18:00',
-              endTime: '18:00',
-            },
-          ],
-        }),
+        service.createBulk(
+          classId,
+          {
+            sessions: [
+              {
+                dayOfWeek: DayOfWeek.MONDAY,
+                startTime: '18:00',
+                endTime: '18:00',
+              },
+            ],
+          },
+          organizationId,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects when two new sessions overlap each other on the same day', async () => {
       await expect(
-        service.createBulk(userId, classId, {
-          sessions: [
-            {
-              dayOfWeek: DayOfWeek.MONDAY,
-              startTime: '18:00',
-              endTime: '20:00',
-            },
-            {
-              dayOfWeek: DayOfWeek.MONDAY,
-              startTime: '19:00',
-              endTime: '21:00',
-            },
-          ],
-        }),
+        service.createBulk(
+          classId,
+          {
+            sessions: [
+              {
+                dayOfWeek: DayOfWeek.MONDAY,
+                startTime: '18:00',
+                endTime: '20:00',
+              },
+              {
+                dayOfWeek: DayOfWeek.MONDAY,
+                startTime: '19:00',
+                endTime: '21:00',
+              },
+            ],
+          },
+          organizationId,
+        ),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('allows the same time on different days', async () => {
-      const result = await service.createBulk(userId, classId, sessions());
+      const result = await service.createBulk(
+        classId,
+        sessions(),
+        organizationId,
+      );
       expect(result).toHaveLength(2);
     });
 
@@ -379,7 +408,7 @@ describe('SchedulesService', () => {
       ]);
 
       await expect(
-        service.createBulk(userId, classId, sessions()),
+        service.createBulk(classId, sessions(), organizationId),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -402,14 +431,14 @@ describe('SchedulesService', () => {
       scheduleRepo.createQueryBuilder.mockReturnValue(qb as any);
 
       await expect(
-        service.createBulk(userId, classId, sessions()),
+        service.createBulk(classId, sessions(), organizationId),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('rejects when the class does not exist', async () => {
       classRepo.findOneBy.mockResolvedValue(null);
       await expect(
-        service.createBulk(userId, classId, sessions()),
+        service.createBulk(classId, sessions(), organizationId),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -420,7 +449,7 @@ describe('SchedulesService', () => {
       });
 
       await expect(
-        service.createBulk(userId, classId, sessions()),
+        service.createBulk(classId, sessions(), organizationId),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -433,9 +462,9 @@ describe('SchedulesService', () => {
         role: { name: 'Staff' },
       } as any);
 
-      await expect(service.remove(userId, 'sched-1')).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(
+        service.remove(userId, 'sched-1', organizationId),
+      ).rejects.toBeInstanceOf(ForbiddenException);
       expect(scheduleRepo.remove).not.toHaveBeenCalled();
     });
 
@@ -456,10 +485,14 @@ describe('SchedulesService', () => {
         classId,
       });
 
-      const result = await service.remove(userId, 'sched-1');
+      const result = await service.remove(userId, 'sched-1', organizationId);
 
       expect(scheduleRepo.remove).toHaveBeenCalled();
       expect(result.id).toBe('sched-1');
+      expect(classRepo.findOneBy).toHaveBeenCalledWith({
+        id: classId,
+        organizationId,
+      });
     });
   });
 });

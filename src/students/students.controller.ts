@@ -19,6 +19,7 @@ import { DownloadImportTemplateQueryDto } from '../imports/dto/download-import-t
 import { DEFAULT_IMPORT_TEMPLATE_LANGUAGE } from '../imports/import-template.constants';
 import { EXCEL_MIME_TYPE } from '../common/excel/excel.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 import { Permissions } from '../authorization/decorators/permissions.decorator';
 import { Permission } from '../authorization/enums/permission.enum';
 
@@ -34,30 +35,30 @@ export class StudentsController {
   @Permissions(Permission.STUDENTS_CREATE)
   create(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Body() createStudentDto: CreateStudentDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.studentsService.create(userId, createStudentDto, {
-      organizationId,
-    });
+    return this.studentsService.create(userId, createStudentDto, organizationId);
   }
 
   @Get()
   @Permissions(Permission.STUDENTS_READ)
   findAll(
     @CurrentUser('userId') userId: string,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
-    return this.studentsService.findAll(userId, { organizationId });
+    return this.studentsService.findAll(userId, organizationId);
   }
 
   @Get('export')
   async exportStudents(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Query() query: ExportStudentsQueryDto,
   ): Promise<StreamableFile> {
     const { buffer, filename } = await this.studentExportService.export(
       userId,
+      organizationId,
       query,
     );
 
@@ -70,11 +71,13 @@ export class StudentsController {
   @Get('import/template')
   async downloadImportTemplate(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Query() query: DownloadImportTemplateQueryDto = {},
   ): Promise<StreamableFile> {
     const { buffer, filename } =
       await this.studentImportTemplateService.download(
         userId,
+        organizationId,
         query.lang ?? DEFAULT_IMPORT_TEMPLATE_LANGUAGE,
       );
 
@@ -87,9 +90,9 @@ export class StudentsController {
   @Get('me')
   findMe(
     @CurrentUser('userId') userId: string,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
-    return this.studentsService.findMe(userId, { organizationId });
+    return this.studentsService.findMe(userId, organizationId);
   }
 
   @Get(':id')
@@ -97,9 +100,9 @@ export class StudentsController {
   findOne(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
-    return this.studentsService.findOne(userId, id, { organizationId });
+    return this.studentsService.findOne(userId, id, organizationId);
   }
 
   @Patch(':id')
@@ -108,11 +111,14 @@ export class StudentsController {
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() updateStudentDto: UpdateStudentDto,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
-    return this.studentsService.update(userId, id, updateStudentDto, {
+    return this.studentsService.update(
+      userId,
+      id,
+      updateStudentDto,
       organizationId,
-    });
+    );
   }
 
   @Patch(':id/status')
@@ -121,13 +127,13 @@ export class StudentsController {
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() updateStudentStatusDto: UpdateStudentStatusDto,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
     return this.studentsService.updateStatus(
       userId,
       id,
       updateStudentStatusDto,
-      { organizationId },
+      organizationId,
     );
   }
 }

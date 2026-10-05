@@ -31,12 +31,9 @@ export class StudentExportService {
 
   async export(
     actorUserId: string,
+    organizationId: string,
     query: ExportStudentsQueryDto,
   ): Promise<StudentExportResult> {
-    const organizationId = await this.studentsService.resolveOrganizationId(
-      actorUserId,
-      query.organizationId,
-    );
     await this.studentsService.assertIsAdminOrOwner(
       actorUserId,
       organizationId,

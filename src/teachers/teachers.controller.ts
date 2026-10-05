@@ -19,6 +19,7 @@ import { DownloadImportTemplateQueryDto } from '../imports/dto/download-import-t
 import { DEFAULT_IMPORT_TEMPLATE_LANGUAGE } from '../imports/import-template.constants';
 import { EXCEL_MIME_TYPE } from '../common/excel/excel.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 
 @Controller('teachers')
 export class TeachersController {
@@ -31,29 +32,29 @@ export class TeachersController {
   @Post()
   create(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Body() createTeacherDto: CreateTeacherDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.teachersService.create(userId, createTeacherDto, {
-      organizationId,
-    });
+    return this.teachersService.create(userId, createTeacherDto, organizationId);
   }
 
   @Get()
   findAll(
     @CurrentUser('userId') userId: string,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
-    return this.teachersService.findAll(userId, { organizationId });
+    return this.teachersService.findAll(userId, organizationId);
   }
 
   @Get('export')
   async exportTeachers(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Query() query: ExportTeachersQueryDto,
   ): Promise<StreamableFile> {
     const { buffer, filename } = await this.teacherExportService.export(
       userId,
+      organizationId,
       query,
     );
 
@@ -66,11 +67,13 @@ export class TeachersController {
   @Get('import/template')
   async downloadImportTemplate(
     @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Query() query: DownloadImportTemplateQueryDto = {},
   ): Promise<StreamableFile> {
     const { buffer, filename } =
       await this.teacherImportTemplateService.download(
         userId,
+        organizationId,
         query.lang ?? DEFAULT_IMPORT_TEMPLATE_LANGUAGE,
       );
 
@@ -83,26 +86,26 @@ export class TeachersController {
   @Get('me')
   findMe(
     @CurrentUser('userId') userId: string,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
-    return this.teachersService.findMe(userId, { organizationId });
+    return this.teachersService.findMe(userId, organizationId);
   }
 
   @Get('me/classes')
   findMyClasses(
     @CurrentUser('userId') userId: string,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
-    return this.teachersService.findMyClasses(userId, { organizationId });
+    return this.teachersService.findMyClasses(userId, organizationId);
   }
 
   @Get(':id')
   findOne(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
-    return this.teachersService.findOne(userId, id, { organizationId });
+    return this.teachersService.findOne(userId, id, organizationId);
   }
 
   @Patch(':id')
@@ -110,11 +113,14 @@ export class TeachersController {
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() updateTeacherDto: UpdateTeacherDto,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
-    return this.teachersService.update(userId, id, updateTeacherDto, {
+    return this.teachersService.update(
+      userId,
+      id,
+      updateTeacherDto,
       organizationId,
-    });
+    );
   }
 
   @Patch(':id/status')
@@ -122,15 +128,13 @@ export class TeachersController {
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
     @Body() updateTeacherStatusDto: UpdateTeacherStatusDto,
-    @Query('organizationId') organizationId?: string,
+    @CurrentOrganization() organizationId: string,
   ) {
     return this.teachersService.updateStatus(
       userId,
       id,
       updateTeacherStatusDto,
-      {
-        organizationId,
-      },
+      organizationId,
     );
   }
 }

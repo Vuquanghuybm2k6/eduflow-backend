@@ -6,12 +6,11 @@ import {
   Param,
   Patch,
   Post,
-  Query,
 } from '@nestjs/common';
 import { EnrollmentsService } from './enrollments.service';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentStatusDto } from './dto/update-enrollment-status.dto';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 
 @Controller('enrollments')
 export class EnrollmentsController {
@@ -19,75 +18,59 @@ export class EnrollmentsController {
 
   @Post()
   create(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Body() createEnrollmentDto: CreateEnrollmentDto,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.enrollmentsService.create(userId, createEnrollmentDto, {
-      organizationId,
-    });
+    return this.enrollmentsService.create(createEnrollmentDto, organizationId);
   }
 
   @Get()
-  findAll(
-    @CurrentUser('userId') userId: string,
-    @Query('organizationId') organizationId?: string,
-  ) {
-    return this.enrollmentsService.findAll(userId, { organizationId });
+  findAll(@CurrentOrganization() organizationId: string) {
+    return this.enrollmentsService.findAll(organizationId);
   }
 
   @Get('student/:studentId')
   findByStudent(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('studentId') studentId: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.enrollmentsService.findByStudent(userId, studentId, {
-      organizationId,
-    });
+    return this.enrollmentsService.findByStudent(studentId, organizationId);
   }
 
   @Get('class/:classId')
   findByClass(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('classId') classId: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.enrollmentsService.findByClass(userId, classId, {
-      organizationId,
-    });
+    return this.enrollmentsService.findByClass(classId, organizationId);
   }
 
   @Get(':id')
   findOne(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.enrollmentsService.findOne(userId, id, { organizationId });
+    return this.enrollmentsService.findOne(id, organizationId);
   }
 
   @Patch(':id/status')
   updateStatus(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
     @Body() updateEnrollmentStatusDto: UpdateEnrollmentStatusDto,
-    @Query('organizationId') organizationId?: string,
   ) {
     return this.enrollmentsService.updateStatus(
-      userId,
       id,
       updateEnrollmentStatusDto,
-      { organizationId },
+      organizationId,
     );
   }
 
   @Delete(':id')
   remove(
-    @CurrentUser('userId') userId: string,
+    @CurrentOrganization() organizationId: string,
     @Param('id') id: string,
-    @Query('organizationId') organizationId?: string,
   ) {
-    return this.enrollmentsService.remove(userId, id, { organizationId });
+    return this.enrollmentsService.remove(id, organizationId);
   }
 }

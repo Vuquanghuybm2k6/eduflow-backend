@@ -25,24 +25,6 @@ const organizationId = 'org-1';
 const classId = 'class-1';
 const teacherId = 'teacher-1';
 
-function buildMembershipQueryBuilderMock(
-  organization: string | null = organizationId,
-) {
-  return {
-    innerJoinAndSelect: jest.fn().mockReturnThis(),
-    where: jest.fn().mockReturnThis(),
-    andWhere: jest.fn().mockReturnThis(),
-    orderBy: jest.fn().mockReturnThis(),
-    addOrderBy: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    getOne: jest
-      .fn()
-      .mockResolvedValue(
-        organization ? { organizationId: organization } : null,
-      ),
-  };
-}
-
 function buildSessionQueryBuilderMock() {
   return {
     select: jest.fn().mockReturnThis(),
@@ -101,9 +83,6 @@ describe('ClassSessionsService', () => {
 
   beforeEach(async () => {
     membershipsRepo = {
-      createQueryBuilder: jest
-        .fn()
-        .mockReturnValue(buildMembershipQueryBuilderMock()),
       findOne: jest.fn().mockResolvedValue({
         id: 'm-1',
         organizationId,
@@ -147,62 +126,59 @@ describe('ClassSessionsService', () => {
     service = module.get<ClassSessionsService>(ClassSessionsService);
   });
 
-  describe('authorization & tenancy', () => {
-    it('rejects when the user has no active membership for the organization', async () => {
-      membershipsRepo.createQueryBuilder.mockReturnValue(
-        buildMembershipQueryBuilderMock(null),
-      );
+  const orgId = 'org-1';
 
+  describe('authorization & tenancy', () => {
+    const dto = { startDate: '2026-01-05', endDate: '2026-01-11' };
+
+    it('scopes the admin check to the current organization', async () => {
       await expect(
-        service.generate(userId, classId, {
-          startDate: '2026-01-05',
-          endDate: '2026-01-11',
+        service.generate(userId, classId, dto, orgId),
+      ).resolves.toBeDefined();
+
+      expect(membershipsRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            userId,
+            organizationId: orgId,
+          }),
         }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      );
     });
 
     it('rejects when the user is not an owner or admin', async () => {
       membershipsRepo.findOne.mockResolvedValue({
         id: 'm-1',
-        organizationId,
+        organizationId: orgId,
         role: { name: 'Teacher' },
       });
 
       await expect(
-        service.generate(userId, classId, {
-          startDate: '2026-01-05',
-          endDate: '2026-01-11',
-        }),
+        service.generate(userId, classId, dto, orgId),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('rejects when the membership has no role', async () => {
       membershipsRepo.findOne.mockResolvedValue({
         id: 'm-1',
-        organizationId,
+        organizationId: orgId,
         role: null,
       });
 
       await expect(
-        service.generate(userId, classId, {
-          startDate: '2026-01-05',
-          endDate: '2026-01-11',
-        }),
+        service.generate(userId, classId, dto, orgId),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('accepts an admin membership', async () => {
       membershipsRepo.findOne.mockResolvedValue({
         id: 'm-1',
-        organizationId,
+        organizationId: orgId,
         role: { name: 'Admin' },
       });
 
       await expect(
-        service.generate(userId, classId, {
-          startDate: '2026-01-05',
-          endDate: '2026-01-11',
-        }),
+        service.generate(userId, classId, dto, orgId),
       ).resolves.toBeDefined();
     });
   });
@@ -211,7 +187,7 @@ describe('ClassSessionsService', () => {
     const dto = { startDate: '2026-01-05', endDate: '2026-01-11' };
 
     it('creates a session for each matching weekday in the range', async () => {
-      const result = await service.generate(userId, classId, dto);
+      const result = await service.generate(userId, classId, dto, orgId);
 
       expect(result).toEqual({
         classId,
@@ -232,7 +208,7 @@ describe('ClassSessionsService', () => {
       ]);
       classSessionsRepo.createQueryBuilder.mockReturnValue(qb);
 
-      const result = await service.generate(userId, classId, dto);
+      const result = await service.generate(userId, classId, dto, orgId);
 
       expect(result.created).toBe(0);
       expect(result.skipped).toBe(1);
@@ -243,7 +219,7 @@ describe('ClassSessionsService', () => {
       classesRepo.findOneBy.mockResolvedValue(null);
 
       await expect(
-        service.generate(userId, classId, dto),
+        service.generate(userId, classId, dto, orgId),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -253,7 +229,7 @@ describe('ClassSessionsService', () => {
       );
 
       await expect(
-        service.generate(userId, classId, dto),
+        service.generate(userId, classId, dto, orgId),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -263,7 +239,7 @@ describe('ClassSessionsService', () => {
       );
 
       await expect(
-        service.generate(userId, classId, dto),
+        service.generate(userId, classId, dto, orgId),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -273,43 +249,63 @@ describe('ClassSessionsService', () => {
       );
 
       await expect(
-        service.generate(userId, classId, dto),
+        service.generate(userId, classId, dto, orgId),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects an invalid start date', async () => {
       await expect(
-        service.generate(userId, classId, {
-          startDate: 'not-a-date',
-          endDate: '2026-01-11',
-        }),
+        service.generate(
+          userId,
+          classId,
+          {
+            startDate: 'not-a-date',
+            endDate: '2026-01-11',
+          },
+          orgId,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects an invalid end date', async () => {
       await expect(
-        service.generate(userId, classId, {
-          startDate: '2026-01-05',
-          endDate: 'not-a-date',
-        }),
+        service.generate(
+          userId,
+          classId,
+          {
+            startDate: '2026-01-05',
+            endDate: 'not-a-date',
+          },
+          orgId,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects when startDate is after endDate', async () => {
       await expect(
-        service.generate(userId, classId, {
-          startDate: '2026-02-01',
-          endDate: '2026-01-01',
-        }),
+        service.generate(
+          userId,
+          classId,
+          {
+            startDate: '2026-02-01',
+            endDate: '2026-01-01',
+          },
+          orgId,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects a range longer than 366 days', async () => {
       await expect(
-        service.generate(userId, classId, {
-          startDate: '2026-01-01',
-          endDate: '2027-06-01',
-        }),
+        service.generate(
+          userId,
+          classId,
+          {
+            startDate: '2026-01-01',
+            endDate: '2027-06-01',
+          },
+          orgId,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -317,7 +313,7 @@ describe('ClassSessionsService', () => {
       schedulesRepo.find.mockResolvedValue([]);
 
       await expect(
-        service.generate(userId, classId, dto),
+        service.generate(userId, classId, dto, orgId),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -329,10 +325,15 @@ describe('ClassSessionsService', () => {
         }),
       );
 
-      const result = await service.generate(userId, classId, {
-        startDate: '2026-01-05',
-        endDate: '2026-01-11',
-      });
+      const result = await service.generate(
+        userId,
+        classId,
+        {
+          startDate: '2026-01-05',
+          endDate: '2026-01-11',
+        },
+        orgId,
+      );
 
       expect(result.created).toBe(0);
       expect(result.skipped).toBe(0);
@@ -344,10 +345,15 @@ describe('ClassSessionsService', () => {
         driverError: { code: '23505' },
       });
 
-      const result = await service.generate(userId, classId, {
-        startDate: '2026-01-05',
-        endDate: '2026-01-19',
-      });
+      const result = await service.generate(
+        userId,
+        classId,
+        {
+          startDate: '2026-01-05',
+          endDate: '2026-01-19',
+        },
+        orgId,
+      );
 
       expect(result.created).toBe(0);
       expect(result.skipped).toBe(3);
@@ -356,9 +362,9 @@ describe('ClassSessionsService', () => {
     it('rethrows non-duplicate database errors', async () => {
       classSessionsRepo.save.mockRejectedValue(new Error('database down'));
 
-      await expect(service.generate(userId, classId, dto)).rejects.toThrow(
-        'database down',
-      );
+      await expect(
+        service.generate(userId, classId, dto, orgId),
+      ).rejects.toThrow('database down');
     });
   });
 
@@ -386,7 +392,7 @@ describe('ClassSessionsService', () => {
         buildAttendanceQueryBuilderMock([{ sessionId: 'session-1' }]),
       );
 
-      const result = await service.findAll(userId, classId, {});
+      const result = await service.findAll(classId, {}, orgId);
 
       expect(result).toEqual([
         {
@@ -411,11 +417,15 @@ describe('ClassSessionsService', () => {
       const qb = buildSessionQueryBuilderMock();
       classSessionsRepo.createQueryBuilder.mockReturnValue(qb);
 
-      await service.findAll(userId, classId, {
-        startDate: '2026-01-01',
-        endDate: '2026-01-31',
-        status: ClassSessionStatus.COMPLETED,
-      });
+      await service.findAll(
+        classId,
+        {
+          startDate: '2026-01-01',
+          endDate: '2026-01-31',
+          status: ClassSessionStatus.COMPLETED,
+        },
+        orgId,
+      );
 
       expect(qb.andWhere).toHaveBeenCalledWith('session.status = :status', {
         status: ClassSessionStatus.COMPLETED,
@@ -435,7 +445,7 @@ describe('ClassSessionsService', () => {
       qb.getMany.mockResolvedValue([{ ...session, teacher: null }]);
       classSessionsRepo.createQueryBuilder.mockReturnValue(qb);
 
-      const result = await service.findAll(userId, classId, {});
+      const result = await service.findAll(classId, {}, orgId);
 
       expect(result[0].teacher).toBeNull();
       expect(result[0].hasAttendance).toBe(false);
@@ -444,7 +454,7 @@ describe('ClassSessionsService', () => {
     it('rejects when the class does not exist', async () => {
       classesRepo.findOneBy.mockResolvedValue(null);
 
-      await expect(service.findAll(userId, classId, {})).rejects.toBeInstanceOf(
+      await expect(service.findAll(classId, {}, orgId)).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });
@@ -480,7 +490,7 @@ describe('ClassSessionsService', () => {
         },
       } as any);
 
-      const result = await service.findOne(userId, classId, 'session-1');
+      const result = await service.findOne(classId, 'session-1', orgId);
 
       expect(result).toMatchObject({
         id: 'session-1',
@@ -501,7 +511,7 @@ describe('ClassSessionsService', () => {
       classSessionsRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.findOne(userId, classId, 'missing'),
+        service.findOne(classId, 'missing', orgId),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

@@ -29,7 +29,6 @@ type MembershipRepoMock = {
   findOne: jest.Mock<
     (options?: FindOneOptions<Membership>) => Promise<Membership | null>
   >;
-  createQueryBuilder: jest.Mock<(alias: string) => QueryBuilder<Membership>>;
 };
 
 type ScheduleRepoMock = {
@@ -162,7 +161,6 @@ describe('SchedulesService.getCalendar', () => {
         {
           provide: getRepositoryToken(Membership),
           useValue: {
-            createQueryBuilder: jest.fn(),
             findOne: jest.fn(),
           },
         },
@@ -209,16 +207,6 @@ describe('SchedulesService.getCalendar', () => {
       role: { name: 'Organization Owner' },
     } as Membership);
 
-    membershipRepo.createQueryBuilder.mockReturnValue({
-      innerJoinAndSelect: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      orderBy: jest.fn().mockReturnThis(),
-      addOrderBy: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      getOne: jest.fn().mockResolvedValue({ organizationId }),
-    } as unknown as QueryBuilder<Membership>);
-
     // Defaults for the other roles.
     teachersRepo.findOne.mockResolvedValue({ id: 'teacher-1' } as Teacher);
     studentsRepo.findOne.mockResolvedValue({ id: 'student-1' } as Student);
@@ -233,19 +221,27 @@ describe('SchedulesService.getCalendar', () => {
     membershipRepo.findOne.mockResolvedValue(null);
 
     await expect(
-      service.getCalendar(userId, {
-        startDate: '2026-09-07',
-        endDate: '2026-09-13',
-      }),
+      service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-07',
+          endDate: '2026-09-13',
+        },
+        organizationId,
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('rejects an inverted date range', async () => {
     await expect(
-      service.getCalendar(userId, {
-        startDate: '2026-09-20',
-        endDate: '2026-09-07',
-      }),
+      service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-20',
+          endDate: '2026-09-07',
+        },
+        organizationId,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -254,10 +250,14 @@ describe('SchedulesService.getCalendar', () => {
       const { qb } = makeQueryBuilder([makeSchedule()]);
       scheduleRepo.createQueryBuilder.mockReturnValue(qb);
 
-      const result: CalendarResponse = await service.getCalendar(userId, {
-        startDate: '2026-09-07',
-        endDate: '2026-09-20',
-      });
+      const result: CalendarResponse = await service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-07',
+          endDate: '2026-09-20',
+        },
+        organizationId,
+      );
 
       expect(result.role).toBe('manager');
       expect(result.events).toHaveLength(2);
@@ -284,11 +284,15 @@ describe('SchedulesService.getCalendar', () => {
       ]);
       scheduleRepo.createQueryBuilder.mockReturnValue(qb);
 
-      await service.getCalendar(userId, {
-        startDate: '2026-09-07',
-        endDate: '2026-09-13',
-        teacherId: 'teacher-other',
-      });
+      await service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-07',
+          endDate: '2026-09-13',
+          teacherId: 'teacher-other',
+        },
+        organizationId,
+      );
 
       expect(whereArgs()).toMatchObject({ organizationId: 'org-1' });
       expect(andWhereCalls()).toEqual(
@@ -302,13 +306,17 @@ describe('SchedulesService.getCalendar', () => {
       const { qb, andWhereCalls } = makeQueryBuilder([makeSchedule()]);
       scheduleRepo.createQueryBuilder.mockReturnValue(qb);
 
-      await service.getCalendar(userId, {
-        startDate: '2026-09-07',
-        endDate: '2026-09-13',
-        branchId: 'branch-1',
-        classId: 'class-1',
-        courseId: 'course-1',
-      });
+      await service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-07',
+          endDate: '2026-09-13',
+          branchId: 'branch-1',
+          classId: 'class-1',
+          courseId: 'course-1',
+        },
+        organizationId,
+      );
 
       const params = andWhereCalls();
       expect(params).toEqual(
@@ -333,11 +341,15 @@ describe('SchedulesService.getCalendar', () => {
         role: { name: 'Teacher' },
       });
 
-      const result = await service.getCalendar(userId, {
-        startDate: '2026-09-07',
-        endDate: '2026-09-13',
-        teacherId: 'teacher-someone-else',
-      });
+      const result = await service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-07',
+          endDate: '2026-09-13',
+          teacherId: 'teacher-someone-else',
+        },
+        organizationId,
+      );
 
       expect(result.role).toBe('teacher');
       expect(whereArgs()).toMatchObject({ organizationId: 'org-1' });
@@ -364,10 +376,14 @@ describe('SchedulesService.getCalendar', () => {
       });
       teachersRepo.findOne.mockResolvedValue(null);
 
-      const result = await service.getCalendar(userId, {
-        startDate: '2026-09-07',
-        endDate: '2026-09-13',
-      });
+      const result = await service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-07',
+          endDate: '2026-09-13',
+        },
+        organizationId,
+      );
 
       expect(result.role).toBe('teacher');
       expect(result.events).toEqual([]);
@@ -386,10 +402,14 @@ describe('SchedulesService.getCalendar', () => {
         role: { name: 'Student' },
       });
 
-      const result = await service.getCalendar(userId, {
-        startDate: '2026-09-07',
-        endDate: '2026-09-13',
-      });
+      const result = await service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-07',
+          endDate: '2026-09-13',
+        },
+        organizationId,
+      );
 
       expect(result.role).toBe('student');
       expect(whereArgs()).toMatchObject({ organizationId: 'org-1' });
@@ -409,10 +429,14 @@ describe('SchedulesService.getCalendar', () => {
       });
       enrollmentsRepo.find.mockResolvedValue([]);
 
-      const result = await service.getCalendar(userId, {
-        startDate: '2026-09-07',
-        endDate: '2026-09-13',
-      });
+      const result = await service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-07',
+          endDate: '2026-09-13',
+        },
+        organizationId,
+      );
 
       expect(result.events).toEqual([]);
     });
@@ -429,10 +453,14 @@ describe('SchedulesService.getCalendar', () => {
       const { qb } = makeQueryBuilder([schedule]);
       scheduleRepo.createQueryBuilder.mockReturnValue(qb);
 
-      const result = await service.getCalendar(userId, {
-        startDate: '2026-09-01',
-        endDate: '2026-09-30',
-      });
+      const result = await service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-01',
+          endDate: '2026-09-30',
+        },
+        organizationId,
+      );
 
       // Mondays in the window: Sep 7 (Sep 14 is past the class end date).
       expect(result.events.map((e) => e.date)).toEqual(['2026-09-07']);
@@ -444,10 +472,14 @@ describe('SchedulesService.getCalendar', () => {
       ]);
       scheduleRepo.createQueryBuilder.mockReturnValue(qb);
 
-      const result = await service.getCalendar(userId, {
-        startDate: '2026-09-07',
-        endDate: '2026-09-07',
-      });
+      const result = await service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-07',
+          endDate: '2026-09-07',
+        },
+        organizationId,
+      );
 
       expect(result.events).toEqual([]);
     });
@@ -458,10 +490,14 @@ describe('SchedulesService.getCalendar', () => {
       ]);
       scheduleRepo.createQueryBuilder.mockReturnValue(qb);
 
-      await service.getCalendar(userId, {
-        startDate: '2026-09-07',
-        endDate: '2026-09-13',
-      });
+      await service.getCalendar(
+        userId,
+        {
+          startDate: '2026-09-07',
+          endDate: '2026-09-13',
+        },
+        organizationId,
+      );
 
       expect(whereArgs()).toMatchObject({ organizationId: 'org-1' });
       expect(andWhereCalls()).toEqual(

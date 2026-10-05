@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -7,16 +7,8 @@ import { Teacher, TeacherStatus } from '../teachers/entities/teacher.entity';
 import { Class, ClassLifecycleStatus } from '../classes/entities/class.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
 import { AttendanceStatus } from '../attendance/enums/attendance-status.enum';
-import {
-  Membership,
-  MembershipStatus,
-} from '../memberships/entities/membership.entity';
 import { Enrollment } from '../enrollments/entities/enrollment.entity';
 import { ClassSession } from '../sessions/entities/class-session.entity';
-
-export interface OrgContextOptions {
-  organizationId?: string;
-}
 
 export interface DashboardStatisticsResponse {
   students: {
@@ -55,60 +47,19 @@ export class DashboardService {
     private readonly classesRepository: Repository<Class>,
     @InjectRepository(Attendance)
     private readonly attendancesRepository: Repository<Attendance>,
-    @InjectRepository(Membership)
-    private readonly membershipsRepository: Repository<Membership>,
     @InjectRepository(Enrollment)
     private readonly enrollmentsRepository: Repository<Enrollment>,
     @InjectRepository(ClassSession)
     private readonly sessionsRepository: Repository<ClassSession>,
   ) {}
 
-  private async resolveOrganizationId(
-    userId: string,
-    requestedOrganizationId?: string,
-  ): Promise<string> {
-    const qb = this.membershipsRepository
-      .createQueryBuilder('membership')
-      .innerJoinAndSelect('membership.organization', 'organization')
-      .where('membership.userId = :userId', { userId })
-      .andWhere('membership.status = :status', {
-        status: MembershipStatus.ACTIVE,
-      });
-
-    if (requestedOrganizationId) {
-      qb.andWhere('membership.organizationId = :organizationId', {
-        organizationId: requestedOrganizationId,
-      });
-    }
-
-    qb.orderBy('membership.joinedAt', 'ASC')
-      .addOrderBy('membership.createdAt', 'ASC')
-      .limit(1);
-
-    const membership = await qb.getOne();
-
-    if (!membership) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    return membership.organizationId;
-  }
-
   private roundRate(rate: number): number {
     return Math.round(rate * 100) / 100;
   }
 
   async getStatistics(
-    userId: string,
-    options: OrgContextOptions = {},
+    organizationId: string,
   ): Promise<DashboardStatisticsResponse> {
-    const organizationId = await this.resolveOrganizationId(
-      userId,
-      options.organizationId,
-    );
-
     const [
       studentStats,
       teacherStats,
