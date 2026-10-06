@@ -273,6 +273,34 @@ export class StudentsService {
     return student;
   }
 
+  async updateProfile(
+    userId: string,
+    updateStudentDto: UpdateStudentDto,
+    organizationId: string,
+  ) {
+    const student = await this.studentsRepository.findOne({
+      where: { userId, organizationId },
+      relations: { user: true },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Hồ sơ học viên không tồn tại');
+    }
+
+    const { branchIds, studentCode, ...profileFields } = updateStudentDto;
+    Object.assign(student, profileFields);
+
+    if (updateStudentDto.gender !== undefined && student.user) {
+      student.user.gender = updateStudentDto.gender ?? null;
+    }
+
+    await this.studentsRepository.save(student);
+    if (updateStudentDto.gender !== undefined && student.user) {
+      await this.usersRepository.save(student.user);
+    }
+    return student;
+  }
+
   async updateStatus(
     actorUserId: string,
     id: string,

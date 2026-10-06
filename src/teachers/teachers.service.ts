@@ -306,6 +306,35 @@ export class TeachersService {
     return teacher;
   }
 
+  async updateProfile(
+    userId: string,
+    updateTeacherDto: UpdateTeacherDto,
+    organizationId: string,
+  ) {
+    const teacher = await this.teachersRepository.findOne({
+      where: { userId, organizationId },
+      relations: { user: true },
+    });
+
+    if (!teacher) {
+      throw new NotFoundException('Hồ sơ giáo viên không tồn tại');
+    }
+
+    const { branchIds, teacherCode, ...profileFields } = updateTeacherDto;
+    
+    Object.assign(teacher, profileFields);
+
+    if (updateTeacherDto.gender !== undefined && teacher.user) {
+      teacher.user.gender = updateTeacherDto.gender ?? null;
+    }
+
+    await this.teachersRepository.save(teacher);
+    if (updateTeacherDto.gender !== undefined && teacher.user) {
+      await this.usersRepository.save(teacher.user);
+    }
+    return teacher;
+  }
+
   async updateStatus(
     actorUserId: string,
     id: string,

@@ -102,22 +102,24 @@ export class EnrollmentsService {
       createEnrollmentDto.classId,
     );
 
-    const existing = await this.enrollmentsRepository.findOneBy({
-      studentId: createEnrollmentDto.studentId,
-      classId: createEnrollmentDto.classId,
-    });
-
-    if (existing) {
-      throw new ConflictException('Học sinh đã ghi danh vào lớp này');
-    }
-
+    // Check capacity
     const activeCount = await this.enrollmentsRepository.countBy({
       classId: createEnrollmentDto.classId,
       status: EnrollmentStatus.ACTIVE,
     });
 
     if (activeCount >= classEntity.capacity) {
-      throw new BadRequestException('Lớp đã hết chỗ');
+      throw new BadRequestException('Lớp học đã đạt tối đa số lượng học sinh cho phép');
+    }
+
+    const existing = await this.enrollmentsRepository.findOneBy({
+      studentId: createEnrollmentDto.studentId,
+      classId: createEnrollmentDto.classId,
+      status: EnrollmentStatus.ACTIVE,
+    });
+
+    if (existing) {
+      throw new ConflictException('Học sinh đã được ghi danh vào lớp này');
     }
 
     const enrollment = this.enrollmentsRepository.create({
