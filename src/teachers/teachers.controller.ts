@@ -35,7 +35,11 @@ export class TeachersController {
     @CurrentOrganization() organizationId: string,
     @Body() createTeacherDto: CreateTeacherDto,
   ) {
-    return this.teachersService.create(userId, createTeacherDto, organizationId);
+    return this.teachersService.create(
+      userId,
+      createTeacherDto,
+      organizationId,
+    );
   }
 
   @Get()

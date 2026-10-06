@@ -119,12 +119,7 @@ describe('TeachersController', () => {
   it('PATCH /teachers/:id delegates to service.update', async () => {
     const dto = { specialization: 'Backend' };
     await controller.update('user-1', 't-1', dto, 'org-1');
-    expect(service.update).toHaveBeenCalledWith(
-      'user-1',
-      't-1',
-      dto,
-      'org-1',
-    );
+    expect(service.update).toHaveBeenCalledWith('user-1', 't-1', dto, 'org-1');
   });
 
   it('PATCH /teachers/:id/status delegates to service.updateStatus', async () => {

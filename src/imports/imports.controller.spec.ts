@@ -6,6 +6,7 @@ import request from 'supertest';
 
 import { ImportsController } from './imports.controller';
 import { ImportsService } from './imports.service';
+import { AuthorizationService } from '../authorization/services/authorization.service';
 
 const IMPORT_JOB_ID = '11111111-2222-4333-8444-555555555555';
 const SAMPLE_FILE = join(
@@ -24,6 +25,10 @@ const serviceStub = {
   confirmTeacherImport: jest.fn(),
 };
 
+const authServiceMock = {
+  hasPermission: jest.fn().mockResolvedValue(true),
+};
+
 describe('ImportsController', () => {
   let controller: ImportsController;
   let service: { [key: string]: jest.Mock };
@@ -32,7 +37,10 @@ describe('ImportsController', () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ImportsController],
-      providers: [{ provide: ImportsService, useValue: serviceStub }],
+      providers: [
+        { provide: ImportsService, useValue: serviceStub },
+        { provide: AuthorizationService, useValue: authServiceMock },
+      ],
     }).compile();
 
     controller = module.get<ImportsController>(ImportsController);
@@ -109,7 +117,10 @@ describe('ImportsController /imports (http)', () => {
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [ImportsController],
-      providers: [{ provide: ImportsService, useValue: serviceStub }],
+      providers: [
+        { provide: ImportsService, useValue: serviceStub },
+        { provide: AuthorizationService, useValue: authServiceMock },
+      ],
     }).compile();
 
     app = moduleRef.createNestApplication();
@@ -119,6 +130,7 @@ describe('ImportsController /imports (http)', () => {
         userId: 'user-1',
         organizationId: 'org-1',
       };
+      (req as { organizationId?: string }).organizationId = 'org-1';
       next();
     });
     app.useGlobalPipes(

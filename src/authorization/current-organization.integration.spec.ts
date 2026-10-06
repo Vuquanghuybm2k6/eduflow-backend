@@ -24,7 +24,9 @@ describe('CurrentOrganization Integration', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     dataSource = moduleFixture.get<DataSource>(DataSource);
@@ -47,16 +49,38 @@ describe('CurrentOrganization Integration', () => {
       { id: ORG_A, name: 'Org A' },
       { id: ORG_B, name: 'Org B' },
     ]);
-    await dataSource.getRepository(User).save([{ id: USER_ID, email: 'test@test.com', fullName: 'Test User' }]);
-    
+    await dataSource
+      .getRepository(User)
+      .save([{ id: USER_ID, email: 'test@test.com', fullName: 'Test User' }]);
+
     await dataSource.getRepository(Membership).save([
-      { userId: USER_ID, organizationId: ORG_A, role: { name: 'Admin' }, status: 'ACTIVE' },
-      { userId: USER_ID, organizationId: ORG_B, role: { name: 'Teacher' }, status: 'ACTIVE' },
+      {
+        userId: USER_ID,
+        organizationId: ORG_A,
+        role: { name: 'Admin' },
+        status: 'ACTIVE',
+      },
+      {
+        userId: USER_ID,
+        organizationId: ORG_B,
+        role: { name: 'Teacher' },
+        status: 'ACTIVE',
+      },
     ]);
 
     await dataSource.getRepository(Student).save([
-      { id: 's1', organizationId: ORG_A, studentCode: 'S-A', user: { id: 'u1', email: 's1@a.com' } },
-      { id: 's2', organizationId: ORG_B, studentCode: 'S-B', user: { id: 'u2', email: 's2@b.com' } },
+      {
+        id: 's1',
+        organizationId: ORG_A,
+        studentCode: 'S-A',
+        user: { id: 'u1', email: 's1@a.com' },
+      },
+      {
+        id: 's2',
+        organizationId: ORG_B,
+        studentCode: 'S-B',
+        user: { id: 'u2', email: 's2@b.com' },
+      },
     ]);
   });
 
@@ -94,13 +118,17 @@ describe('CurrentOrganization Integration', () => {
   it('should apply permissions based on the organization in JWT', async () => {
     // User is Admin in Org A, Teacher in Org B
     // Action: Create Student (Requires ADMIN/OWNER)
-    
+
     // 1. Try with Org B JWT (Teacher) -> Should be Forbidden
     const tokenB = getJwt(ORG_B);
     const resB = await request(app.getHttpServer())
       .post('/students')
       .set('Authorization', `Bearer ${tokenB}`)
-      .send({ studentCode: 'S-NEW', email: 'new@b.com', fullName: 'New Student' });
+      .send({
+        studentCode: 'S-NEW',
+        email: 'new@b.com',
+        fullName: 'New Student',
+      });
 
     expect(resB.status).toBe(403);
 
@@ -109,7 +137,11 @@ describe('CurrentOrganization Integration', () => {
     const resA = await request(app.getHttpServer())
       .post('/students')
       .set('Authorization', `Bearer ${tokenA}`)
-      .send({ studentCode: 'S-NEW', email: 'new@a.com', fullName: 'New Student' });
+      .send({
+        studentCode: 'S-NEW',
+        email: 'new@a.com',
+        fullName: 'New Student',
+      });
 
     expect(resA.status).toBe(201);
   });

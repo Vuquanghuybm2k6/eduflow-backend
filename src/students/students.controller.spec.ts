@@ -11,6 +11,7 @@ import { Student } from './entities/student.entity';
 import { User } from '../users/entities/user.entity';
 import { Membership } from '../memberships/entities/membership.entity';
 import { Branch } from '../branches/entities/branch.entity';
+import { AuthorizationService } from '../authorization/services/authorization.service';
 
 const exportServiceMock = {
   export: jest.fn().mockResolvedValue({
@@ -24,6 +25,10 @@ const templateServiceMock = {
     buffer: Buffer.from('fake-template-xlsx-bytes'),
     filename: 'student-import-sample-vi.xlsx',
   }),
+};
+
+const authServiceMock = {
+  hasPermission: jest.fn().mockResolvedValue(true),
 };
 
 describe('StudentsController', () => {
@@ -70,6 +75,10 @@ describe('StudentsController', () => {
           provide: StudentImportTemplateService,
           useValue: templateServiceMock,
         },
+        {
+          provide: AuthorizationService,
+          useValue: authServiceMock,
+        },
       ],
     }).compile();
 
@@ -81,26 +90,20 @@ describe('StudentsController', () => {
   });
 
   it('GET /students/import/template delegates to studentImportTemplateService.download', async () => {
-    await controller.downloadImportTemplate(
-      { userId: 'user-1' },
-      { organizationId: 'org-1' },
-      {},
-    );
+    await controller.downloadImportTemplate({ userId: 'user-1' }, 'org-1', {});
     expect(templateServiceMock.download).toHaveBeenCalledWith(
-      { userId: 'user-1' },
+      'user-1',
       'org-1',
       'vi',
     );
   });
 
   it('passes the requested language to studentImportTemplateService.download', async () => {
-    await controller.downloadImportTemplate(
-      { userId: 'user-1' },
-      { organizationId: 'org-1' },
-      { lang: 'en' },
-    );
+    await controller.downloadImportTemplate({ userId: 'user-1' }, 'org-1', {
+      lang: 'en',
+    });
     expect(templateServiceMock.download).toHaveBeenCalledWith(
-      { userId: 'user-1' },
+      'user-1',
       'org-1',
       'en',
     );
@@ -119,6 +122,10 @@ describe('StudentsController /students/export (http)', () => {
         {
           provide: StudentImportTemplateService,
           useValue: templateServiceMock,
+        },
+        {
+          provide: AuthorizationService,
+          useValue: authServiceMock,
         },
       ],
     }).compile();

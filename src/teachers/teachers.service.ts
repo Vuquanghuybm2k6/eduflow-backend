@@ -320,8 +320,11 @@ export class TeachersService {
       throw new NotFoundException('Hồ sơ giáo viên không tồn tại');
     }
 
-    const { branchIds, teacherCode, ...profileFields } = updateTeacherDto;
-    
+    const {
+      branchIds: _branchIds,
+      teacherCode: _teacherCode,
+      ...profileFields
+    } = updateTeacherDto;
     Object.assign(teacher, profileFields);
 
     if (updateTeacherDto.gender !== undefined && teacher.user) {

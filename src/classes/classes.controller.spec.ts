@@ -4,6 +4,7 @@ import request from 'supertest';
 import { ClassesController } from './classes.controller';
 import { ClassesService } from './classes.service';
 import { ClassStatus } from './entities/class.entity';
+import { AuthorizationService } from '../authorization/services/authorization.service';
 
 describe('ClassesController', () => {
   let controller: ClassesController;
@@ -18,11 +19,18 @@ describe('ClassesController', () => {
     duplicate: jest.fn(),
   };
 
+  const authServiceMock = {
+    hasPermission: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ClassesController],
-      providers: [{ provide: ClassesService, useValue: serviceStub }],
+      providers: [
+        { provide: ClassesService, useValue: serviceStub },
+        { provide: AuthorizationService, useValue: authServiceMock },
+      ],
     }).compile();
 
     controller = module.get<ClassesController>(ClassesController);
@@ -97,7 +105,10 @@ describe('ClassesController /classes (http)', () => {
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [ClassesController],
-      providers: [{ provide: ClassesService, useValue: serviceStub }],
+      providers: [
+        { provide: ClassesService, useValue: serviceStub },
+        { provide: AuthorizationService, useValue: authServiceMock },
+      ],
     }).compile();
 
     app = moduleRef.createNestApplication();
@@ -107,6 +118,7 @@ describe('ClassesController /classes (http)', () => {
         userId: 'user-1',
         organizationId: 'org-1',
       };
+      (req as { organizationId?: string }).organizationId = 'org-1';
       next();
     });
     app.useGlobalPipes(
@@ -147,7 +159,7 @@ describe('ClassesController /classes (http)', () => {
   });
 
   it('rejects ?organizationId=org-x with 400 because the JWT is the source of truth', async () => {
-    const res = await request(app.getHttpServer()).get(
+    const res = await request(app.getHtttpServer()).get(
       '/classes?organizationId=org-x',
     );
 

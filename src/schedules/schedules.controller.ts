@@ -51,7 +51,7 @@ export class SchedulesController {
   @Permissions(Permission.SCHEDULES_CREATE)
   create(
     @CurrentOrganization() organizationId: string,
-    @Param('classId', ParseUUIDHPipe) classId: string,
+    @Param('classId', ParseUUIDPipe) classId: string,
     @Body() createScheduleDto: CreateScheduleDto,
   ) {
     return this.schedulesService.create(

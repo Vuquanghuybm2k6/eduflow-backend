@@ -129,7 +129,9 @@ describe('StudentExportService', () => {
     it('allows an admin to export', async () => {
       studentsService.assertIsAdminOrOwner.mockResolvedValue(undefined);
 
-      await expect(service.export(actorUserId, organizationId, {})).resolves.toBeDefined();
+      await expect(
+        service.export(actorUserId, organizationId, {}),
+      ).resolves.toBeDefined();
     });
 
     it('rejects a non-manager user', async () => {
@@ -139,9 +141,9 @@ describe('StudentExportService', () => {
         ),
       );
 
-      await expect(service.export(actorUserId, organizationId, {})).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.export(actorUserId, organizationId, {}),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -184,7 +186,9 @@ describe('StudentExportService', () => {
     });
 
     it('applies a status filter', async () => {
-      await service.export(actorUserId, organizationId, { status: 'INACTIVE' as const });
+      await service.export(actorUserId, organizationId, {
+        status: 'INACTIVE' as const,
+      });
 
       expect(queryBuilder.andWhere).toHaveBeenCalledWith(
         'student.status = :status',
@@ -193,7 +197,9 @@ describe('StudentExportService', () => {
     });
 
     it('applies a gender filter', async () => {
-      await service.export(actorUserId, organizationId, { gender: 'FEMALE' as const });
+      await service.export(actorUserId, organizationId, {
+        gender: 'FEMALE' as const,
+      });
 
       expect(queryBuilder.andWhere).toHaveBeenCalledWith(
         'user.gender = :gender',
@@ -260,9 +266,9 @@ describe('StudentExportService', () => {
     it('rejects a branch that belongs to another organization', async () => {
       branchesRepository.findOneBy.mockResolvedValue(null);
 
-      await expect(service.export(actorUserId, organizationId, { branchId })).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.export(actorUserId, organizationId, { branchId }),
+      ).rejects.toThrow(NotFoundException);
       expect(queryBuilder.getMany).not.toHaveBeenCalled();
     });
   });

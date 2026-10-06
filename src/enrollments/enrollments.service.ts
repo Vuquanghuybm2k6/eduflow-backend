@@ -109,7 +109,9 @@ export class EnrollmentsService {
     });
 
     if (activeCount >= classEntity.capacity) {
-      throw new BadRequestException('Lớp học đã đạt tối đa số lượng học sinh cho phép');
+      throw new BadRequestException(
+        'Lớp học đã đạt tối đa số lượng học sinh cho phép',
+      );
     }
 
     const existing = await this.enrollmentsRepository.findOneBy({

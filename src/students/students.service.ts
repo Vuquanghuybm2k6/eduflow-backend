@@ -287,7 +287,11 @@ export class StudentsService {
       throw new NotFoundException('Hồ sơ học viên không tồn tại');
     }
 
-    const { branchIds, studentCode, ...profileFields } = updateStudentDto;
+    const {
+      branchIds: _branchIds,
+      studentCode: _studentCode,
+      ...profileFields
+    } = updateStudentDto;
     Object.assign(student, profileFields);
 
     if (updateStudentDto.gender !== undefined && student.user) {

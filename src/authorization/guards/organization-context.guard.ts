@@ -9,7 +9,9 @@ import { CurrentOrganizationRequest } from '../../auth/decorators/current-organi
 @Injectable()
 export class OrganizationContextGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<CurrentOrganizationRequest>();
+    const request = context
+      .switchToHttp()
+      .getRequest<CurrentOrganizationRequest>();
 
     // 1. JWT has already been validated by JwtAuthGuard
     // 2. Extract organizationId from request.user (Single Source of Truth)

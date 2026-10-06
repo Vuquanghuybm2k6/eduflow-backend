@@ -193,7 +193,6 @@ describe('TeachersService', () => {
     });
 
     it('throws ForbiddenException when the user has no active membership in the organization', async () => {
-
       await expect(service.create('actor-1', dto, 'org-1')).rejects.toThrow(
         ForbiddenException,
       );
@@ -250,9 +249,9 @@ describe('TeachersService', () => {
       membershipsRepo.findOne.mockResolvedValue(adminMembership);
       teachersRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne('actor-1', 'missing', 'org-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.findOne('actor-1', 'missing', 'org-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -277,7 +276,9 @@ describe('TeachersService', () => {
     it('throws NotFoundException when the user is not a teacher', async () => {
       teachersRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.findMe('user-x', 'org-1')).rejects.toThrow(NotFoundException);
+      await expect(service.findMe('user-x', 'org-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

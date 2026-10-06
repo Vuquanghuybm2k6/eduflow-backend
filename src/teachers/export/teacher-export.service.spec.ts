@@ -188,7 +188,9 @@ describe('TeacherExportService', () => {
     });
 
     it('applies a status filter', async () => {
-      await service.export(actorUserId, organizationId, { status: 'INACTIVE' as const });
+      await service.export(actorUserId, organizationId, {
+        status: 'INACTIVE' as const,
+      });
 
       expect(queryBuilder.andWhere).toHaveBeenCalledWith(
         'teacher.status = :status',
@@ -197,7 +199,9 @@ describe('TeacherExportService', () => {
     });
 
     it('applies a specialization filter', async () => {
-      await service.export(actorUserId, organizationId, { specialization: 'Toán học' });
+      await service.export(actorUserId, organizationId, {
+        specialization: 'Toán học',
+      });
 
       expect(queryBuilder.andWhere).toHaveBeenCalledWith(
         'teacher.specialization = :specialization',
@@ -266,9 +270,9 @@ describe('TeacherExportService', () => {
     it('rejects a branch that belongs to another organization', async () => {
       branchesRepository.findOneBy.mockResolvedValue(null);
 
-      await expect(service.export(actorUserId, organizationId, { branchId })).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.export(actorUserId, organizationId, { branchId }),
+      ).rejects.toThrow(NotFoundException);
       expect(queryBuilder.getMany).not.toHaveBeenCalled();
     });
   });

@@ -4,53 +4,64 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
 import { AttendanceSummaryQueryDto } from './dto/attendance-summary-query.dto';
 import { ClassCardsQueryDto } from './dto/class-cards-query.dto';
+import { Permissions } from '../authorization/decorators/permissions.decorator';
+import { Permission } from '../authorization/enums/permission.enum';
 
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Get('classes/cards')
+  @Permissions(Permission.REPORTS_READ)
   getClassAttendanceCards(
     @CurrentUser('userId') userId: string,
     @CurrentOrganization() organizationId: string,
     @Query() query: ClassCardsQueryDto,
   ) {
-    return this.reportsService.getClassAttendanceCards(
-      userId,
-      organizationId,
-      {
-        search: query.search,
-        branchId: query.branchId,
-        teacherId: query.teacherId,
-        page: query.page,
-        limit: query.limit,
-      },
-    );
+    return this.reportsService.getClassAttendanceCards(userId, organizationId, {
+      search: query.search,
+      branchId: query.branchId,
+      teacherId: query.teacherId,
+      page: query.page,
+      limit: query.limit,
+    });
   }
 
   @Get('classes/:classId/attendance-summary')
+  @Permissions(Permission.REPORTS_READ)
   getClassAttendanceSummary(
     @CurrentUser('userId') userId: string,
     @Param('classId', ParseUUIDPipe) classId: string,
     @CurrentOrganization() organizationId: string,
   ) {
-    return this.reportsService.getClassAttendanceSummary(userId, classId, organizationId);
+    return this.reportsService.getClassAttendanceSummary(
+      userId,
+      classId,
+      organizationId,
+    );
   }
 
   @Get('classes/:classId/students')
+  @Permissions(Permission.REPORTS_READ)
   getClassStudentsAttendance(
     @CurrentUser('userId') userId: string,
     @Param('classId', ParseUUIDPipe) classId: string,
     @CurrentOrganization() organizationId: string,
     @Query() query: AttendanceSummaryQueryDto,
   ) {
-    return this.reportsService.getClassStudentsAttendance(userId, classId, organizationId, {
-      startDate: query.startDate,
-      endDate: query.endDate,
-    });
+    return this.reportsService.getClassStudentsAttendance(
+      userId,
+      classId,
+      organizationId,
+      {
+        startDate: query.startDate,
+        endDate: query.endDate,
+      },
+    );
   }
 
   @Get('students/:studentId/attendance-summary')
+  @Permissions(Permission.REPORTS_READ)
   getStudentAttendanceSummary(
     @CurrentUser('userId') userId: string,
     @Param('studentId', ParseUUIDPipe) studentId: string,
@@ -66,20 +77,30 @@ export class ReportsController {
       );
     }
 
-    return this.reportsService.getStudentAttendanceSummary(userId, studentId, organizationId);
+    return this.reportsService.getStudentAttendanceSummary(
+      userId,
+      studentId,
+      organizationId,
+    );
   }
 
   @Get('students/:studentId/attendance-history')
+  @Permissions(Permission.REPORTS_READ)
   getStudentAttendanceHistory(
     @CurrentUser('userId') userId: string,
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @CurrentOrganization() organizationId: string,
     @Query() query: AttendanceSummaryQueryDto,
   ) {
-    return this.reportsService.getStudentAttendanceHistory(userId, studentId, organizationId, {
-      classId: query.classId,
-      page: query.page,
-      limit: query.limit,
-    });
+    return this.reportsService.getStudentAttendanceHistory(
+      userId,
+      studentId,
+      organizationId,
+      {
+        classId: query.classId,
+        page: query.page,
+        limit: query.limit,
+      },
+    );
   }
 }

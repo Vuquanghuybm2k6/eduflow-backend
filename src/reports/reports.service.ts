@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 
@@ -14,7 +18,6 @@ import { AttendanceStatus } from '../attendance/enums/attendance-status.enum';
 import { DayOfWeek } from '../schedules/entities/schedule.entity';
 import {
   Membership,
-  MembershipStatus,
 } from '../memberships/entities/membership.entity';
 import {
   Enrollment,
@@ -198,6 +201,26 @@ export class ReportsService {
 
     if (!classEntity) {
       throw new NotFoundException('Class not found');
+    }
+
+    // Teacher check: If user is a teacher, they can only see reports for classes they teach
+    const membership = await this.membershipsRepository.findOne({
+      where: { userId, organizationId, status: 'ACTIVE' },
+      relations: { role: true },
+    });
+    const isManager =
+      membership?.role?.name.toLowerCase().includes('admin') ||
+      membership?.role?.name.toLowerCase().includes('owner');
+
+    if (!isManager) {
+      const isAssignedTeacher = await this.classesRepository.findOne({
+        where: { id: classId, teacherId: userId, organizationId },
+      });
+      if (!isAssignedTeacher) {
+        throw new ForbiddenException(
+          'You can only access attendance reports for classes you teach',
+        );
+      }
     }
 
     const totalSessionsResult = await this.sessionsRepository
@@ -776,7 +799,7 @@ export class ReportsService {
         class: { organizationId },
       },
     });
-    return enrollments.map((enrollment) => enrollment.classId);
+    return (enrollments ?? []).map((enrollment) => enrollment.classId);
   }
 
   private async resolveSingleClassForStudent(
