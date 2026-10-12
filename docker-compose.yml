@@ -19,6 +19,26 @@ services:
       retries: 10
       start_period: 10s
 
+  # Ephemeral database for integration tests. Started explicitly with the
+  # `test` profile: `npm run db:test:up` (or docker compose --profile test up).
+  postgres_test:
+    image: postgres:16-alpine
+    container_name: eduflow-postgres-test
+    profiles: ['test']
+    environment:
+      POSTGRES_USER: ${TEST_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${TEST_POSTGRES_DB:-eduflow_test}
+    ports:
+      - '${TEST_POSTGRES_PORT:-5433}:5432'
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${TEST_POSTGRES_USER:-postgres} -d ${TEST_POSTGRES_DB:-eduflow_test}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   backend:
     build:
       context: .
