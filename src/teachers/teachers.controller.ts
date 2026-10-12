@@ -20,6 +20,8 @@ import { DEFAULT_IMPORT_TEMPLATE_LANGUAGE } from '../imports/import-template.con
 import { EXCEL_MIME_TYPE } from '../common/excel/excel.constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CurrentOrganization } from '../auth/decorators/current-organization.decorator';
+import { Permissions } from '../authorization/decorators/permissions.decorator';
+import { Permission } from '../authorization/enums/permission.enum';
 
 @Controller('teachers')
 export class TeachersController {
@@ -30,6 +32,7 @@ export class TeachersController {
   ) {}
 
   @Post()
+  @Permissions(Permission.TEACHERS_CREATE)
   create(
     @CurrentUser('userId') userId: string,
     @CurrentOrganization() organizationId: string,
@@ -43,6 +46,7 @@ export class TeachersController {
   }
 
   @Get()
+  @Permissions(Permission.TEACHERS_READ)
   findAll(
     @CurrentUser('userId') userId: string,
     @CurrentOrganization() organizationId: string,
@@ -104,6 +108,7 @@ export class TeachersController {
   }
 
   @Get(':id')
+  @Permissions(Permission.TEACHERS_READ)
   findOne(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
@@ -113,6 +118,7 @@ export class TeachersController {
   }
 
   @Patch(':id')
+  @Permissions(Permission.TEACHERS_UPDATE)
   update(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,
@@ -128,6 +134,7 @@ export class TeachersController {
   }
 
   @Patch(':id/status')
+  @Permissions(Permission.TEACHERS_UPDATE)
   updateStatus(
     @CurrentUser('userId') userId: string,
     @Param('id') id: string,

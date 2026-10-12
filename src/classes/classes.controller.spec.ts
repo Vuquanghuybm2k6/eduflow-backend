@@ -6,6 +6,10 @@ import { ClassesService } from './classes.service';
 import { ClassStatus } from './entities/class.entity';
 import { AuthorizationService } from '../authorization/services/authorization.service';
 
+const authServiceMock = {
+  hasPermission: jest.fn().mockResolvedValue(true),
+};
+
 describe('ClassesController', () => {
   let controller: ClassesController;
   let service: { [key: string]: jest.Mock };
@@ -17,10 +21,6 @@ describe('ClassesController', () => {
     update: jest.fn(),
     remove: jest.fn(),
     duplicate: jest.fn(),
-  };
-
-  const authServiceMock = {
-    hasPermission: jest.fn().mockResolvedValue(true),
   };
 
   beforeEach(async () => {
@@ -159,7 +159,7 @@ describe('ClassesController /classes (http)', () => {
   });
 
   it('rejects ?organizationId=org-x with 400 because the JWT is the source of truth', async () => {
-    const res = await request(app.getHtttpServer()).get(
+    const res = await request(app.getHttpServer()).get(
       '/classes?organizationId=org-x',
     );
 

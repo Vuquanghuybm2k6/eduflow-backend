@@ -156,6 +156,7 @@ describe('TeachersController /teachers/export (http)', () => {
         userId: 'user-1',
         organizationId: 'org-1',
       };
+      (req as { organizationId?: string }).organizationId = 'org-1';
       next();
     });
     app.useGlobalPipes(
