@@ -20,6 +20,7 @@ import {
   Membership,
   MembershipStatus,
 } from '../memberships/entities/membership.entity';
+
 import {
   Enrollment,
   EnrollmentStatus,
@@ -209,6 +210,7 @@ export class ReportsService {
       where: { userId, organizationId, status: MembershipStatus.ACTIVE },
       relations: { role: true },
     });
+
     const isManager =
       membership?.role?.name.toLowerCase().includes('admin') ||
       membership?.role?.name.toLowerCase().includes('owner');

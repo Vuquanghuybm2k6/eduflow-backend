@@ -90,7 +90,7 @@ describe('StudentsController', () => {
   });
 
   it('GET /students/import/template delegates to studentImportTemplateService.download', async () => {
-    await controller.downloadImportTemplate({ userId: 'user-1' }, 'org-1', {});
+    await controller.downloadImportTemplate('user-1', 'org-1', {});
     expect(templateServiceMock.download).toHaveBeenCalledWith(
       'user-1',
       'org-1',
@@ -99,7 +99,7 @@ describe('StudentsController', () => {
   });
 
   it('passes the requested language to studentImportTemplateService.download', async () => {
-    await controller.downloadImportTemplate({ userId: 'user-1' }, 'org-1', {
+    await controller.downloadImportTemplate('user-1', 'org-1', {
       lang: 'en',
     });
     expect(templateServiceMock.download).toHaveBeenCalledWith(

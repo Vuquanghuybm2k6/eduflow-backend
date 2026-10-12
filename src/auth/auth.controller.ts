@@ -10,7 +10,7 @@ import { GoogleLoginDto } from './dto/google-login.dto';
 import { VerifyRegistrationOtpDto } from './dto/verify-registration-otp.dto';
 import { SelectMembershipDto } from './dto/select-membership.dto';
 import { CurrentUser } from './decorators/current-user.decorator';
-import { Public } from './decorators/public.decorator';
+import { Public } from '../authorization/decorators/public.decorator';
 
 @Controller('auth')
 export class AuthController {

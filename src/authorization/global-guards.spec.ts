@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { Membership } from '../memberships/entities/membership.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthorizationModule } from './authorization.module';
+import { OrganizationContextGuard } from './guards/organization-context.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { AuthorizationService } from './services/authorization.service';
 
@@ -25,16 +26,18 @@ describe('AuthorizationModule global guard registration', () => {
       (provider as GuardProvider).provide === APP_GUARD,
   );
 
-  it('registers both guards as global guards', () => {
-    expect(globalGuards).toHaveLength(2);
+  it('registers all guards as global guards', () => {
+    expect(globalGuards).toHaveLength(3);
   });
 
-  it('registers JwtAuthGuard before PermissionsGuard', () => {
+  it('registers JwtAuthGuard, then OrganizationContextGuard, then PermissionsGuard', () => {
     // Order is behavioural, not cosmetic: JwtAuthGuard must run first so an
     // unauthenticated request gets 401 instead of PermissionsGuard failing on
-    // a missing request.user and returning 403.
+    // a missing request.user and returning 403. OrganizationContextGuard runs
+    // second so the tenant context is resolved before permission checks.
     expect(globalGuards[0].useClass).toBe(JwtAuthGuard);
-    expect(globalGuards[1].useClass).toBe(PermissionsGuard);
+    expect(globalGuards[1].useClass).toBe(OrganizationContextGuard);
+    expect(globalGuards[2].useClass).toBe(PermissionsGuard);
   });
 
   it('compiles the module so the DI graph is valid at bootstrap', async () => {

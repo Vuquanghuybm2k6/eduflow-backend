@@ -13,7 +13,7 @@ export interface CurrentOrganizationRequest extends Request {
 export function resolveCurrentOrganization(
   request: CurrentOrganizationRequest,
 ): string {
-  const organizationId = request.organizationId;
+  const organizationId = request.user?.organizationId ?? request.organizationId;
 
   if (!organizationId) {
     throw new ForbiddenException('No current organization for this request');

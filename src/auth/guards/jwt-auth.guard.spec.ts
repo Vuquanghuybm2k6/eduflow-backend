@@ -1,5 +1,5 @@
 import { ExecutionContext } from '@nestjs/common';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { IS_PUBLIC_KEY } from '../../authorization/decorators/public.decorator';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 function createContext(): ExecutionContext {

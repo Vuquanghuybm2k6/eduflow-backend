@@ -83,7 +83,7 @@ describe('ReportsService', () => {
     studentsRepo = { findOneBy: jest.fn() };
     sessionsRepo = { createQueryBuilder: jest.fn() };
     attendancesRepo = { createQueryBuilder: jest.fn() };
-    membershipsRepo = { createQueryBuilder: jest.fn() };
+    membershipsRepo = { createQueryBuilder: jest.fn(), findOne: jest.fn() };
     enrollmentsRepo = { find: jest.fn(), findOneBy: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -120,9 +120,10 @@ describe('ReportsService', () => {
   });
 
   function mockMembership() {
-    membershipsRepo.createQueryBuilder.mockReturnValue(
-      makeQb('getOne', { organizationId: 'org-1' }),
-    );
+    membershipsRepo.findOne.mockResolvedValue({
+      organizationId: 'org-1',
+      role: { name: 'admin' },
+    });
   }
 
   function mockClassFound() {
@@ -731,6 +732,7 @@ describe('ReportsService', () => {
       const result = await service.getStudentAttendanceHistory(
         'user-1',
         'student-1',
+        'org-1',
         { classId: 'class-1', page: 2, limit: 10 },
       );
 
@@ -1105,7 +1107,7 @@ describe('ReportsService', () => {
       const qb = makeQb('getMany', []);
       sessionsRepo.createQueryBuilder.mockReturnValue(qb);
 
-      await service.getClassStudentsAttendance('user-1', 'class-1', {
+      await service.getClassStudentsAttendance('user-1', 'class-1', 'org-1', {
         startDate: '2026-09-01',
         endDate: '2026-09-30',
       });

@@ -9,7 +9,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
 import { JwtStrategy } from '../auth/strategies/jwt.strategy';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Public } from '../auth/decorators/public.decorator';
+import { Public } from './decorators/public.decorator';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { Permissions } from './decorators/permissions.decorator';
 import { Permission } from './enums/permission.enum';
