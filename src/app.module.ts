@@ -25,6 +25,7 @@ import { ImportsModule } from './imports/imports.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ReportsModule } from './reports/reports.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { HealthModule } from './health/health.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -64,6 +65,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     AttendanceModule,
     ReportsModule,
     DashboardModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
