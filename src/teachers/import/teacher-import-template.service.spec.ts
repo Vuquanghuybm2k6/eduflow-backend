@@ -1,10 +1,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException } from '@nestjs/common';
 
 import { TeacherImportTemplateService } from './teacher-import-template.service';
-import { TeachersService } from '../teachers.service';
 import { ExcelService } from '../../common/excel/excel.service';
 import { resolveImportHeaders } from '../../imports/definitions/import-field';
 import {
@@ -17,21 +15,10 @@ const organizationId = 'org-1';
 
 describe('TeacherImportTemplateService', () => {
   let service: TeacherImportTemplateService;
-  let teachersService: {
-    assertIsAdminOrOwner: jest.Mock;
-  };
 
   beforeEach(async () => {
-    teachersService = {
-      assertIsAdminOrOwner: jest.fn().mockResolvedValue(undefined),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        TeacherImportTemplateService,
-        { provide: TeachersService, useValue: teachersService },
-        ExcelService,
-      ],
+      providers: [TeacherImportTemplateService, ExcelService],
     }).compile();
 
     service = module.get<TeacherImportTemplateService>(
@@ -39,18 +26,9 @@ describe('TeacherImportTemplateService', () => {
     );
   });
 
-  describe('authorization', () => {
-    it('uses the JWT organization context and requires an admin', async () => {
-      await service.download(actorUserId, organizationId);
-
-      expect(teachersService.assertIsAdminOrOwner).toHaveBeenCalledWith(
-        actorUserId,
-        organizationId,
-      );
-    });
-
-    it('allows an owner to download the Vietnamese template file', async () => {
-      const result = await service.download(actorUserId, organizationId);
+  describe('templates', () => {
+    it('downloads the Vietnamese template file', () => {
+      const result = service.download(actorUserId, organizationId);
 
       const expected = readFileSync(
         join(
@@ -64,8 +42,8 @@ describe('TeacherImportTemplateService', () => {
       expect(result.filename).toBe('teacher-import-sample-vi.xlsx');
     });
 
-    it('downloads the English template file when requested', async () => {
-      const result = await service.download(actorUserId, organizationId, 'en');
+    it('downloads the English template file when requested', () => {
+      const result = service.download(actorUserId, organizationId, 'en');
 
       const expected = readFileSync(
         join(
@@ -78,18 +56,6 @@ describe('TeacherImportTemplateService', () => {
       expect(result.buffer.equals(expected)).toBe(true);
       expect(result.filename).toBe('teacher-import-sample-en.xlsx');
     });
-
-    it('rejects a non-manager user', async () => {
-      teachersService.assertIsAdminOrOwner.mockRejectedValue(
-        new ForbiddenException(
-          'Only an owner or admin can perform this action',
-        ),
-      );
-
-      await expect(
-        service.download(actorUserId, organizationId),
-      ).rejects.toThrow(ForbiddenException);
-    });
   });
 });
 
@@ -98,16 +64,7 @@ describe('TeacherImportTemplateService (real Excel round-trip)', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        TeacherImportTemplateService,
-        {
-          provide: TeachersService,
-          useValue: {
-            assertIsAdminOrOwner: jest.fn().mockResolvedValue(undefined),
-          },
-        },
-        ExcelService,
-      ],
+      providers: [TeacherImportTemplateService, ExcelService],
     }).compile();
 
     service = module.get<TeacherImportTemplateService>(
@@ -116,7 +73,7 @@ describe('TeacherImportTemplateService (real Excel round-trip)', () => {
   });
 
   it('serves the Vietnamese sample workbook with valid headers and both worksheets', async () => {
-    const result = await service.download('user-manager', 'org-1');
+    const result = service.download('user-manager', 'org-1');
 
     const excelService = new ExcelService();
     const workbook = await excelService.readWorkbook(result.buffer);

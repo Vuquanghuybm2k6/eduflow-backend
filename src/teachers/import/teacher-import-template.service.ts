@@ -10,7 +10,6 @@ import {
   type ImportTemplateLanguage,
 } from '../../imports/import-template.constants';
 import type { ImportFieldDefinition } from '../../imports/definitions/import-field';
-import { TeachersService } from '../teachers.service';
 import {
   TEACHER_IMPORT_FIELDS,
   TEACHER_IMPORT_WORKSHEET_NAME,
@@ -44,21 +43,13 @@ const INSTRUCTIONS_COLUMN_WIDTHS = [18, 12, 60, 32];
 
 @Injectable()
 export class TeacherImportTemplateService {
-  constructor(
-    private readonly teachersService: TeachersService,
-    private readonly excelService: ExcelService,
-  ) {}
+  constructor(private readonly excelService: ExcelService) {}
 
-  async download(
-    actorUserId: string,
+  download(
+    _actorUserId: string,
     organizationId: string,
     language: ImportTemplateLanguage = DEFAULT_IMPORT_TEMPLATE_LANGUAGE,
-  ): Promise<TeacherImportTemplateResult> {
-    await this.teachersService.assertIsAdminOrOwner(
-      actorUserId,
-      organizationId,
-    );
-
+  ): TeacherImportTemplateResult {
     const buffer = readFileSync(
       join(
         process.cwd(),

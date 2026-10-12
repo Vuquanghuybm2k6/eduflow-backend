@@ -14,7 +14,7 @@ const exportServiceMock = {
 };
 
 const templateServiceMock = {
-  download: jest.fn().mockResolvedValue({
+  download: jest.fn().mockReturnValue({
     buffer: Buffer.from('fake-template-xlsx-bytes'),
     filename: 'teacher-import-sample-vi.xlsx',
   }),
@@ -81,8 +81,8 @@ describe('TeachersController', () => {
     );
   });
 
-  it('GET /teachers/import/template delegates to teacherImportTemplateService.download', async () => {
-    await controller.downloadImportTemplate('user-1', 'org-1');
+  it('GET /teachers/import/template delegates to teacherImportTemplateService.download', () => {
+    controller.downloadImportTemplate('user-1', 'org-1');
     expect(templateServiceMock.download).toHaveBeenCalledWith(
       'user-1',
       'org-1',
@@ -90,8 +90,8 @@ describe('TeachersController', () => {
     );
   });
 
-  it('passes the requested language to teacherImportTemplateService.download', async () => {
-    await controller.downloadImportTemplate('user-1', 'org-1', {
+  it('passes the requested language to teacherImportTemplateService.download', () => {
+    controller.downloadImportTemplate('user-1', 'org-1', {
       lang: 'en',
     });
     expect(templateServiceMock.download).toHaveBeenCalledWith(

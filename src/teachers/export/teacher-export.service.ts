@@ -6,7 +6,6 @@ import { ExcelService } from '../../common/excel/excel.service';
 import { EXCEL_EXTENSION } from '../../common/excel/excel.constants';
 import { Branch } from '../../branches/entities/branch.entity';
 import { Teacher } from '../entities/teacher.entity';
-import { TeachersService } from '../teachers.service';
 import { ExportTeachersQueryDto } from '../dto/export-teachers-query.dto';
 import {
   TEACHER_EXPORT_BIO_COLUMN_INDEX,
@@ -23,7 +22,6 @@ import {
 @Injectable()
 export class TeacherExportService {
   constructor(
-    private readonly teachersService: TeachersService,
     private readonly excelService: ExcelService,
     @InjectRepository(Teacher)
     private readonly teachersRepository: Repository<Teacher>,
@@ -32,15 +30,10 @@ export class TeacherExportService {
   ) {}
 
   async export(
-    actorUserId: string,
+    _actorUserId: string,
     organizationId: string,
     query: ExportTeachersQueryDto,
   ): Promise<TeacherExportResult> {
-    await this.teachersService.assertIsAdminOrOwner(
-      actorUserId,
-      organizationId,
-    );
-
     await this.assertBranchBelongsToOrganization(
       organizationId,
       query.branchId,

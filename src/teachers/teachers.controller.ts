@@ -55,6 +55,7 @@ export class TeachersController {
   }
 
   @Get('export')
+  @Permissions(Permission.TEACHERS_READ)
   async exportTeachers(
     @CurrentUser('userId') userId: string,
     @CurrentOrganization() organizationId: string,
@@ -73,17 +74,17 @@ export class TeachersController {
   }
 
   @Get('import/template')
-  async downloadImportTemplate(
+  @Permissions(Permission.TEACHERS_CREATE)
+  downloadImportTemplate(
     @CurrentUser('userId') userId: string,
     @CurrentOrganization() organizationId: string,
     @Query() query: DownloadImportTemplateQueryDto = {},
-  ): Promise<StreamableFile> {
-    const { buffer, filename } =
-      await this.teacherImportTemplateService.download(
-        userId,
-        organizationId,
-        query.lang ?? DEFAULT_IMPORT_TEMPLATE_LANGUAGE,
-      );
+  ): StreamableFile {
+    const { buffer, filename } = this.teacherImportTemplateService.download(
+      userId,
+      organizationId,
+      query.lang ?? DEFAULT_IMPORT_TEMPLATE_LANGUAGE,
+    );
 
     return new StreamableFile(buffer, {
       type: EXCEL_MIME_TYPE,

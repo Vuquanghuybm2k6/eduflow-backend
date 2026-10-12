@@ -1,9 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 
 import { TeacherExportService } from './teacher-export.service';
-import { TeachersService } from '../teachers.service';
 import { ExcelService } from '../../common/excel/excel.service';
 import { ExcelExportWorksheet } from '../../common/excel/excel.types';
 import { Teacher } from '../entities/teacher.entity';
@@ -71,9 +70,6 @@ function buildQueryBuilder(getManyResult: Teacher[]) {
 
 describe('TeacherExportService', () => {
   let service: TeacherExportService;
-  let teachersService: {
-    assertIsAdminOrOwner: jest.Mock;
-  };
   let excelService: {
     exportWorksheet: jest.Mock;
     writeWorkbook: jest.Mock;
@@ -83,9 +79,6 @@ describe('TeacherExportService', () => {
   let queryBuilder: ReturnType<typeof buildQueryBuilder>;
 
   beforeEach(async () => {
-    teachersService = {
-      assertIsAdminOrOwner: jest.fn().mockResolvedValue(undefined),
-    };
     excelService = {
       exportWorksheet: jest.fn().mockReturnValue({}),
       writeWorkbook: jest.fn().mockResolvedValue(Buffer.from('workbook-bytes')),
@@ -98,7 +91,6 @@ describe('TeacherExportService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TeacherExportService,
-        { provide: TeachersService, useValue: teachersService },
         { provide: ExcelService, useValue: excelService },
         {
           provide: getRepositoryToken(Teacher),
@@ -109,44 +101,6 @@ describe('TeacherExportService', () => {
     }).compile();
 
     service = module.get<TeacherExportService>(TeacherExportService);
-  });
-
-  describe('authorization', () => {
-    it('passes the JWT organization context to the authorization check', async () => {
-      await service.export(actorUserId, organizationId, {});
-
-      expect(teachersService.assertIsAdminOrOwner).toHaveBeenCalledWith(
-        actorUserId,
-        organizationId,
-      );
-    });
-
-    it('allows an owner to export', async () => {
-      const result = await service.export(actorUserId, organizationId, {});
-
-      expect(result.buffer.equals(Buffer.from('workbook-bytes'))).toBe(true);
-      expect(result.filename).toMatch(/^teachers-\d{4}-\d{2}-\d{2}\.xlsx$/);
-    });
-
-    it('allows an admin to export', async () => {
-      teachersService.assertIsAdminOrOwner.mockResolvedValue(undefined);
-
-      await expect(
-        service.export(actorUserId, organizationId, {}),
-      ).resolves.toBeDefined();
-    });
-
-    it('rejects a non-manager user', async () => {
-      teachersService.assertIsAdminOrOwner.mockRejectedValue(
-        new ForbiddenException(
-          'Only an owner or admin can perform this action',
-        ),
-      );
-
-      await expect(
-        service.export(actorUserId, organizationId, {}),
-      ).rejects.toThrow(ForbiddenException);
-    });
   });
 
   describe('filters', () => {
@@ -412,12 +366,9 @@ describe('TeacherExportService', () => {
   describe('helper functions (dto becomes validated elsewhere)', () => {
     it('exports a query object without organization id', async () => {
       const query: ExportTeachersQueryDto = {};
-      await service.export(actorUserId, organizationId, query);
+      const result = await service.export(actorUserId, organizationId, query);
 
-      expect(teachersService.assertIsAdminOrOwner).toHaveBeenCalledWith(
-        actorUserId,
-        organizationId,
-      );
+      expect(result.filename).toMatch(/^teachers-\d{4}-\d{2}-\d{2}\.xlsx$/);
     });
   });
 });

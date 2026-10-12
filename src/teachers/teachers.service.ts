@@ -1,6 +1,5 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -15,10 +14,7 @@ import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { UpdateTeacherStatusDto } from './dto/update-teacher-status.dto';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../roles/entities/role.entity';
-import {
-  Membership,
-  MembershipStatus,
-} from '../memberships/entities/membership.entity';
+import { Membership } from '../memberships/entities/membership.entity';
 import { Class, ClassLifecycleStatus } from '../classes/entities/class.entity';
 import { Branch, BranchStatus } from '../branches/entities/branch.entity';
 
@@ -32,39 +28,11 @@ export class TeachersService {
     private readonly teachersRepository: Repository<Teacher>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
-    @InjectRepository(Membership)
-    private readonly membershipsRepository: Repository<Membership>,
     @InjectRepository(Class)
     private readonly classesRepository: Repository<Class>,
     @InjectRepository(Branch)
     private readonly branchesRepository: Repository<Branch>,
   ) {}
-
-  async assertIsAdminOrOwner(userId: string, organizationId: string) {
-    const membership = await this.membershipsRepository.findOne({
-      where: {
-        userId,
-        organizationId,
-        status: MembershipStatus.ACTIVE,
-      },
-      relations: { role: true },
-    });
-
-    if (!membership || !membership.role) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    const roleName = membership.role.name.toLowerCase();
-    const isManager = roleName.includes('owner') || roleName.includes('admin');
-
-    if (!isManager) {
-      throw new ForbiddenException(
-        'Only an owner or admin can perform this action',
-      );
-    }
-  }
 
   private async findOrCreateTeacherRole(
     manager: EntityManager,
@@ -153,11 +121,10 @@ export class TeachersService {
    * failure on any step rolls everything back.
    */
   async create(
-    actorUserId: string,
+    _actorUserId: string,
     createTeacherDto: CreateTeacherDto,
     organizationId: string,
   ) {
-    await this.assertIsAdminOrOwner(actorUserId, organizationId);
     await this.assertTeacherCodeAvailable(
       organizationId,
       createTeacherDto.teacherCode,
@@ -215,11 +182,9 @@ export class TeachersService {
   }
 
   async findAll(
-    actorUserId: string,
+    _actorUserId: string,
     organizationId: string,
   ): Promise<Teacher[]> {
-    await this.assertIsAdminOrOwner(actorUserId, organizationId);
-
     return this.teachersRepository.find({
       where: { organizationId },
       relations: { user: true, branches: true },
@@ -227,9 +192,7 @@ export class TeachersService {
     });
   }
 
-  async findOne(actorUserId: string, id: string, organizationId: string) {
-    await this.assertIsAdminOrOwner(actorUserId, organizationId);
-
+  async findOne(_actorUserId: string, id: string, organizationId: string) {
     return this.findTeacherOrThrow(id, organizationId);
   }
 
@@ -261,13 +224,11 @@ export class TeachersService {
   }
 
   async update(
-    actorUserId: string,
+    _actorUserId: string,
     id: string,
     updateTeacherDto: UpdateTeacherDto,
     organizationId: string,
   ) {
-    await this.assertIsAdminOrOwner(actorUserId, organizationId);
-
     const teacher = await this.findTeacherOrThrow(id, organizationId);
 
     if (
@@ -339,13 +300,11 @@ export class TeachersService {
   }
 
   async updateStatus(
-    actorUserId: string,
+    _actorUserId: string,
     id: string,
     updateTeacherStatusDto: UpdateTeacherStatusDto,
     organizationId: string,
   ) {
-    await this.assertIsAdminOrOwner(actorUserId, organizationId);
-
     const teacher = await this.findTeacherOrThrow(id, organizationId);
 
     if (updateTeacherStatusDto.status === TeacherStatus.INACTIVE) {

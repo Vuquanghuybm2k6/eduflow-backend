@@ -1,10 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import {
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { TeachersService } from './teachers.service';
@@ -180,23 +176,6 @@ describe('TeachersService', () => {
         ConflictException,
       );
     });
-
-    it('throws ForbiddenException when the actor is not owner/admin', async () => {
-      membershipsRepo.findOne.mockResolvedValue({
-        ...adminMembership,
-        role: { name: 'Teacher' },
-      });
-
-      await expect(service.create('actor-1', dto, 'org-1')).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
-
-    it('throws ForbiddenException when the user has no active membership in the organization', async () => {
-      await expect(service.create('actor-1', dto, 'org-1')).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
   });
 
   describe('findAll', () => {
@@ -212,17 +191,6 @@ describe('TeachersService', () => {
         expect.objectContaining({ where: { organizationId: 'org-1' } }),
       );
       expect(result).toHaveLength(1);
-    });
-
-    it('throws ForbiddenException when called by a teacher', async () => {
-      membershipsRepo.findOne.mockResolvedValue({
-        ...adminMembership,
-        role: { name: 'Teacher' },
-      });
-
-      await expect(service.findAll('actor-1', 'org-1')).rejects.toThrow(
-        ForbiddenException,
-      );
     });
   });
 
