@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,8 +15,6 @@ import {
   ClassStatus,
 } from '../classes/entities/class.entity';
 import { DayOfWeek, Schedule } from '../schedules/entities/schedule.entity';
-import { Membership } from '../memberships/entities/membership.entity';
-import { MembershipStatus } from '../memberships/entities/membership.entity';
 import { GenerateSessionsDto } from './dto/generate-sessions.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
 import { Attendance } from '../attendance/entities/attendance.entity';
@@ -51,40 +48,9 @@ export class ClassSessionsService {
     private readonly classesRepository: Repository<Class>,
     @InjectRepository(Schedule)
     private readonly schedulesRepository: Repository<Schedule>,
-    @InjectRepository(Membership)
-    private readonly membershipsRepository: Repository<Membership>,
     @InjectRepository(Attendance)
     private readonly attendancesRepository: Repository<Attendance>,
   ) {}
-
-  private async assertIsAdminOrOwner(
-    userId: string,
-    organizationId: string,
-  ): Promise<void> {
-    const membership = await this.membershipsRepository.findOne({
-      where: {
-        userId,
-        organizationId,
-        status: MembershipStatus.ACTIVE,
-      },
-      relations: { role: true },
-    });
-
-    if (!membership || !membership.role) {
-      throw new ForbiddenException(
-        'User does not have access to this organization',
-      );
-    }
-
-    const roleName = membership.role.name.toLowerCase();
-    const isManager = roleName.includes('owner') || roleName.includes('admin');
-
-    if (!isManager) {
-      throw new ForbiddenException(
-        'Only an owner or admin can perform this action',
-      );
-    }
-  }
 
   private async assertClassEditable(
     organizationId: string,
@@ -178,13 +144,11 @@ export class ClassSessionsService {
   }
 
   async generate(
-    actorUserId: string,
+    _actorUserId: string,
     classId: string,
     dto: GenerateSessionsDto,
     organizationId: string,
   ): Promise<GenerateResult> {
-    await this.assertIsAdminOrOwner(actorUserId, organizationId);
-
     const classEntity = await this.assertClassEditable(organizationId, classId);
 
     if (!classEntity.teacherId) {

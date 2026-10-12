@@ -1,11 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { ClassSessionsService } from './class-sessions.service';
 import { ClassSession } from './entities/class-session.entity';
@@ -17,7 +13,6 @@ import {
   ClassStatus,
 } from '../classes/entities/class.entity';
 import { DayOfWeek, Schedule } from '../schedules/entities/schedule.entity';
-import { Membership } from '../memberships/entities/membership.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
 
 const userId = 'user-1';
@@ -78,18 +73,9 @@ describe('ClassSessionsService', () => {
   let classSessionsRepo: jest.Mocked<Partial<Repository<ClassSession>>>;
   let classesRepo: jest.Mocked<Partial<Repository<Class>>>;
   let schedulesRepo: jest.Mocked<Partial<Repository<Schedule>>>;
-  let membershipsRepo: jest.Mocked<Partial<Repository<Membership>>>;
   let attendancesRepo: jest.Mocked<Partial<Repository<Attendance>>>;
 
   beforeEach(async () => {
-    membershipsRepo = {
-      findOne: jest.fn().mockResolvedValue({
-        id: 'm-1',
-        organizationId,
-        role: { name: 'Owner' },
-      }),
-    };
-
     classesRepo = {
       findOneBy: jest.fn().mockResolvedValue(buildActiveClass()),
     };
@@ -118,7 +104,6 @@ describe('ClassSessionsService', () => {
         },
         { provide: getRepositoryToken(Class), useValue: classesRepo },
         { provide: getRepositoryToken(Schedule), useValue: schedulesRepo },
-        { provide: getRepositoryToken(Membership), useValue: membershipsRepo },
         { provide: getRepositoryToken(Attendance), useValue: attendancesRepo },
       ],
     }).compile();
@@ -127,61 +112,6 @@ describe('ClassSessionsService', () => {
   });
 
   const orgId = 'org-1';
-
-  describe('authorization & tenancy', () => {
-    const dto = { startDate: '2026-01-05', endDate: '2026-01-11' };
-
-    it('scopes the admin check to the current organization', async () => {
-      await expect(
-        service.generate(userId, classId, dto, orgId),
-      ).resolves.toBeDefined();
-
-      expect(membershipsRepo.findOne).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            userId,
-            organizationId: orgId,
-          }),
-        }),
-      );
-    });
-
-    it('rejects when the user is not an owner or admin', async () => {
-      membershipsRepo.findOne.mockResolvedValue({
-        id: 'm-1',
-        organizationId: orgId,
-        role: { name: 'Teacher' },
-      });
-
-      await expect(
-        service.generate(userId, classId, dto, orgId),
-      ).rejects.toBeInstanceOf(ForbiddenException);
-    });
-
-    it('rejects when the membership has no role', async () => {
-      membershipsRepo.findOne.mockResolvedValue({
-        id: 'm-1',
-        organizationId: orgId,
-        role: null,
-      });
-
-      await expect(
-        service.generate(userId, classId, dto, orgId),
-      ).rejects.toBeInstanceOf(ForbiddenException);
-    });
-
-    it('accepts an admin membership', async () => {
-      membershipsRepo.findOne.mockResolvedValue({
-        id: 'm-1',
-        organizationId: orgId,
-        role: { name: 'Admin' },
-      });
-
-      await expect(
-        service.generate(userId, classId, dto, orgId),
-      ).resolves.toBeDefined();
-    });
-  });
 
   describe('generate', () => {
     const dto = { startDate: '2026-01-05', endDate: '2026-01-11' };
