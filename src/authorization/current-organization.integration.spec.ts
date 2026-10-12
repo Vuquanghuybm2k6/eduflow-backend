@@ -229,4 +229,36 @@ describe('CurrentOrganization Integration', () => {
 
     expect(created.status).toBe(201);
   });
+
+  it('exposes the current user role and permissions for the active org', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/auth/me')
+      .set(
+        'Authorization',
+        `Bearer ${tokenFor(TEACHER_ID, ORG_B, 'teacher@test.com')}`,
+      );
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(TEACHER_ID);
+    expect(res.body.organizationId).toBe(ORG_B);
+    expect(res.body.role).toEqual({ code: RoleCode.TEACHER, name: 'Teacher' });
+    expect(res.body.permissions).toEqual([Permission.STUDENTS_READ]);
+    expect(res.body.passwordHash).toBeUndefined();
+  });
+
+  it('returns the full permission set sorted for an admin', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/auth/me')
+      .set(
+        'Authorization',
+        `Bearer ${tokenFor(ADMIN_ID, ORG_A, 'admin@test.com')}`,
+      );
+
+    expect(res.status).toBe(200);
+    expect(res.body.role).toEqual({ code: RoleCode.ADMIN, name: 'Admin' });
+    expect(res.body.permissions).toEqual([
+      Permission.STUDENTS_CREATE,
+      Permission.STUDENTS_READ,
+    ]);
+  });
 });

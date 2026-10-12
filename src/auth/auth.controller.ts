@@ -150,8 +150,11 @@ export class AuthController {
   }
 
   @Get('me')
-  getMe(@CurrentUser('userId') userId: string) {
-    return this.authService.getMe(userId);
+  getMe(
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.authService.getMe(userId, organizationId);
   }
 
   private setRefreshTokenCookie(res: Response, token: string) {

@@ -14,6 +14,7 @@ import { Role } from '../roles/entities/role.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { VerificationToken } from './entities/verification-token.entity';
 import { Membership } from '../memberships/entities/membership.entity';
+import { AuthorizationService } from '../authorization/services/authorization.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -45,6 +46,7 @@ describe('AuthService', () => {
   let users: { findByEmail: jest.Mock; findById: jest.Mock };
   let mail: { sendOtpEmail: jest.Mock };
   let jwt: { signAsync: jest.Mock; verifyAsync: jest.Mock };
+  let authorization: { getAuthorizationContext: jest.Mock };
 
   beforeEach(async () => {
     dataSource = {
@@ -83,6 +85,11 @@ describe('AuthService', () => {
     users = { findByEmail: jest.fn(), findById: jest.fn() };
     mail = { sendOtpEmail: jest.fn().mockResolvedValue(undefined) };
     jwt = { signAsync: jest.fn(), verifyAsync: jest.fn() };
+    authorization = {
+      getAuthorizationContext: jest
+        .fn()
+        .mockResolvedValue({ role: null, permissions: [] }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -105,6 +112,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: jwt },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: MailService, useValue: mail },
+        { provide: AuthorizationService, useValue: authorization },
       ],
     }).compile();
 
@@ -317,6 +325,39 @@ describe('AuthService', () => {
         expect.objectContaining<Record<string, unknown>>({
           roleId: 'role-owner',
         }),
+      );
+    });
+  });
+
+  describe('getMe', () => {
+    it('returns the user with role, permissions and organizationId', async () => {
+      users.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'a@b.com',
+        fullName: 'User',
+        status: 'ACTIVE',
+      });
+      authorization.getAuthorizationContext.mockResolvedValue({
+        role: { code: 'TEACHER', name: 'Teacher' },
+        permissions: ['students:read'],
+      });
+
+      const result = await service.getMe('user-1', 'org-1');
+
+      expect(authorization.getAuthorizationContext).toHaveBeenCalledWith(
+        'user-1',
+        'org-1',
+      );
+      expect(result.organizationId).toBe('org-1');
+      expect(result.role).toEqual({ code: 'TEACHER', name: 'Teacher' });
+      expect(result.permissions).toEqual(['students:read']);
+    });
+
+    it('throws UnauthorizedException when the user is missing', async () => {
+      users.findById.mockResolvedValue(null);
+
+      await expect(service.getMe('missing', 'org-1')).rejects.toThrow(
+        UnauthorizedException,
       );
     });
   });

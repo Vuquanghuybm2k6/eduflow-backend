@@ -30,6 +30,7 @@ import {
   OtpPurpose,
 } from './entities/verification-token.entity';
 import { RoleCode } from '../authorization/enums/role.enum';
+import { AuthorizationService } from '../authorization/services/authorization.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { SelectMembershipDto } from './dto/select-membership.dto';
@@ -94,6 +95,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
+    private readonly authorizationService: AuthorizationService,
   ) {}
 
   async sendRegistrationOtp(dto: RegisterDto) {
@@ -576,12 +578,24 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  async getMe(userId: string) {
+  async getMe(userId: string, organizationId: string) {
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-    return this.sanitizeUser(user);
+
+    const authorization =
+      await this.authorizationService.getAuthorizationContext(
+        userId,
+        organizationId,
+      );
+
+    return {
+      ...this.sanitizeUser(user),
+      organizationId,
+      role: authorization.role,
+      permissions: authorization.permissions,
+    };
   }
 
   private async getActiveMemberships(userId: string): Promise<Membership[]> {

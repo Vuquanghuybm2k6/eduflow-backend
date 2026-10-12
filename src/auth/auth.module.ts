@@ -8,6 +8,7 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UsersModule } from '../users/users.module';
 import { MailModule } from '../mail/mail.module';
+import { AuthorizationModule } from '../authorization/authorization.module';
 import { User } from '../users/entities/user.entity';
 import { Organization } from '../organizations/entities/organization.entity';
 import { Role } from '../roles/entities/role.entity';
@@ -19,6 +20,7 @@ import { VerificationToken } from './entities/verification-token.entity';
   imports: [
     UsersModule,
     MailModule,
+    AuthorizationModule,
     TypeOrmModule.forFeature([
       User,
       Organization,
